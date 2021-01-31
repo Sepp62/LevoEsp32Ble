@@ -1,7 +1,8 @@
 = Levo BLE ESP32 Data Logger =
 
 Protocol decoder for Specialized Levo pedelec bike via bluetooth.
-   For ESP32
+   For ESP32 (only)
+   Special example for M5Core2 hardware with screen dispaly and file logging
 
   Version history:
 
