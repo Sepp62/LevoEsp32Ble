@@ -4,6 +4,13 @@
  *
  *  Displays Specialized Levo 2019+ telemetry values to M5Core2 display
  *  and logs data to SD card (levolog.txt)
+ *  
+ *  Library dependencies:
+ *  https://github.com/h2zero/NimBLE-Arduino
+ *  https://github.com/m5stack/M5Core2
+ *  https://github.com/ropg/ezTime
+ *  https://github.com/espressif/arduino-esp32/tree/master/libraries/Preferences
+ *  https://github.com/tuupola/bm8563
  * 
  *  Images converted with: https://lvgl.io/tools/imageconverter (True color, C-Array)
  *
@@ -26,7 +33,7 @@
 // tick count for uncritical loop funtions
 static const unsigned long TICK_MS = 100L;
 
-Preferences  Prefs;    // https://github.com/espressif/arduino-esp32/tree/master/libraries/Preferences
+Preferences  Prefs;    
 LevoEsp32Ble LevoBle;
 DisplayData  DispData;
 M5System     Core2;
