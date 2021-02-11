@@ -58,6 +58,7 @@ public:
     typedef enum
     {
         UNDEFINED = 0,
+        SWITCHEDOFF,
         OFFLINE,
         CONNECTING,
         CONNECTED,
@@ -96,6 +97,8 @@ protected:
     static uint32_t      m_scanTime; /** 0 = scan forever */
     static bool          m_queueOverrun;
 
+    static bool          m_bAutoReconnect;
+
     // BLE message queue 
     typedef struct
     {
@@ -110,13 +113,15 @@ protected:
 public:
     LevoEsp32Ble() {}
 
-    void Init( uint32_t pin );
+    void Init( uint32_t pin, bool bBtEnabled = true );
     bool Update( stBleVal & bleVal );
+    void Disconnect();
+    void Reconnect();
 
-    enBleStatus GetBleStatus() { return m_bleStatus; }
+    enBleStatus GetBleStatus();
 
 protected:
-
+    void startScan();
     bool connectToServer();
 };
 #endif // LEVOESP32BLE_H

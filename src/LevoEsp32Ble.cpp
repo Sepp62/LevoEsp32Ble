@@ -19,13 +19,14 @@ LevoEsp32Ble::enBleStatus LevoEsp32Ble::m_bleStatus = LevoEsp32Ble::OFFLINE;
 bool     LevoEsp32Ble::m_doConnect = false;
 uint32_t LevoEsp32Ble::m_scanTime = 0; /** 0 = scan forever */
 bool     LevoEsp32Ble::m_queueOverrun = false;
+bool     LevoEsp32Ble::m_bAutoReconnect = true;
 
 // ble message queue from bluetooth stack running on core 0 to main thread on core 1
 QueueHandle_t LevoEsp32Ble::m_bleMsgQueue;
 
 void scanEndedCB(NimBLEScanResults results);
 
-static NimBLEAdvertisedDevice* advDevice;
+static NimBLEAdvertisedDevice* s_advDevice = 0;
 
 class ClientCallbacks : public NimBLEClientCallbacks
 {
@@ -43,7 +44,8 @@ class ClientCallbacks : public NimBLEClientCallbacks
         LevoEsp32Ble::m_bleStatus = LevoEsp32Ble::OFFLINE;
         Serial.print(pClient->getPeerAddress().toString().c_str());
         Serial.println(" Disconnected - Starting scan");
-        NimBLEDevice::getScan()->start(LevoEsp32Ble::m_scanTime, scanEndedCB);
+        if(LevoEsp32Ble::m_bAutoReconnect )
+            NimBLEDevice::getScan()->start(LevoEsp32Ble::m_scanTime, scanEndedCB);
     };
     
     /** Called when the peripheral requests a change to the connection parameters.
@@ -101,7 +103,7 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks
             {
                 Serial.println("Found our device!");
                 advertisedDevice->getScan()->stop();
-                advDevice = advertisedDevice;
+                s_advDevice = advertisedDevice;
                 LevoEsp32Ble::m_doConnect = true;
                 LevoEsp32Ble::m_bleStatus = LevoEsp32Ble::CONNECTING;
             }
@@ -164,7 +166,7 @@ bool LevoEsp32Ble::DecodeMessage(uint8_t* pData, size_t length, LevoEsp32Ble::st
     case 0: // battery
         switch (channel)
         {
-        case 1:  bleVal.dataType = LevoEsp32Ble::BATT_ENERGY;         bleVal.fVal = val; break; // 00 01 e4 00 Batt Wh? 4Wh per %  -> 51%->228  52%->233 33%->146 33%->144   full=450 or 504 or 400?
+        case 1:  bleVal.dataType = LevoEsp32Ble::BATT_ENERGY;         bleVal.fVal = 1.11f * (float)val; break; // 00 01 e4 00 Batt Wh? 4Wh per %  -> 51%->228  52%->233 33%->146 33%->144   full=450Wh
         case 2:  bleVal.dataType = LevoEsp32Ble::BATT_HEALTH;         bleVal.fVal = val; break; // 00 02 64
         case 3:  bleVal.dataType = LevoEsp32Ble::BATT_TEMP;           bleVal.fVal = val; break; // 00 03 13
         case 4:  bleVal.dataType = LevoEsp32Ble::BATT_CHARGECYCLES;   bleVal.fVal = val; break; // 00 04 0d 00
@@ -209,6 +211,35 @@ bool LevoEsp32Ble::DecodeMessage(uint8_t* pData, size_t length, LevoEsp32Ble::st
     return true;
 }
 
+// Reconnect client
+void LevoEsp32Ble::Reconnect()
+{
+    Serial.println( "Reconnect called" );
+    m_bAutoReconnect = true;
+    if (s_advDevice == NULL)
+    {
+        Serial.println("Start scan");
+        startScan();
+    }
+    else
+        NimBLEDevice::getScan()->start(LevoEsp32Ble::m_scanTime, scanEndedCB);
+}
+
+// Disconnect client
+void LevoEsp32Ble::Disconnect()
+{
+    if( s_advDevice )
+    {
+        NimBLEClient* pClient = NimBLEDevice::getClientByPeerAddress(s_advDevice->getAddress());
+        if (pClient)
+        {
+            pClient->disconnect();
+            Serial.println("Ble Disconnect() called.");
+        }
+    }
+    m_bAutoReconnect = false;
+}
+
 // Handles the provisioning of clients and connects / interfaces with the server
 bool LevoEsp32Ble::connectToServer()
 {
@@ -221,10 +252,10 @@ bool LevoEsp32Ble::connectToServer()
          *  second argument in connect() to prevent refreshing the service database.
          *  This saves considerable time and power.
          */
-        pClient = NimBLEDevice::getClientByPeerAddress(advDevice->getAddress());
+        pClient = NimBLEDevice::getClientByPeerAddress(s_advDevice->getAddress());
         if(pClient)
         {
-            if(!pClient->connect(advDevice, false))
+            if(!pClient->connect(s_advDevice, false))
             {
                 Serial.println("Reconnect failed");
                 return false;
@@ -257,7 +288,7 @@ bool LevoEsp32Ble::connectToServer()
         pClient->setConnectionParams(12,12,0,51);
         pClient->setConnectTimeout(5);
 
-        if (!pClient->connect(advDevice))
+        if (!pClient->connect(s_advDevice))
         {
             // Created a client but failed to connect, don't need to keep it as it has no data
             NimBLEDevice::deleteClient(pClient);
@@ -268,7 +299,7 @@ bool LevoEsp32Ble::connectToServer()
     
     if(!pClient->isConnected())
     {
-        if (!pClient->connect(advDevice)) {
+        if (!pClient->connect(s_advDevice)) {
             Serial.println("Failed to connect");
             return false;
         }
@@ -313,14 +344,47 @@ bool LevoEsp32Ble::connectToServer()
     return true;
 }
 
-void LevoEsp32Ble::Init( uint32_t pin )
+// get Bluetooth status 
+LevoEsp32Ble::enBleStatus LevoEsp32Ble::GetBleStatus()
+{
+    // manually disabled
+    if( m_bleStatus == OFFLINE && !m_bAutoReconnect)
+        return SWITCHEDOFF;
+
+    return m_bleStatus;
+}
+
+// start scan and connect after finding the Levo device
+void LevoEsp32Ble::startScan()
+{
+    // create new scan
+    NimBLEScan* pScan = NimBLEDevice::getScan();
+
+    // create a callback that gets called when advertisers are found
+    pScan->setAdvertisedDeviceCallbacks(new AdvertisedDeviceCallbacks());
+
+    // Set scan interval (how often) and window (how long) in milliseconds
+    pScan->setInterval(45);
+    pScan->setWindow(15);
+
+    // Active scan will gather scan response data from advertisers but will use more energy from both devices
+    pScan->setActiveScan(true);
+    // Start scanning for advertisers for the scan time specified (in seconds) 0 = forever, optional callback for when scanning stops. 
+    pScan->start(LevoEsp32Ble::m_scanTime, scanEndedCB);
+}
+
+void LevoEsp32Ble::Init( uint32_t pin, bool bBtEnabled )
 {
     Serial.println("Starting NimBLE Client");
 
-    m_pin = pin;
-
     // message queue
     m_bleMsgQueue = xQueueCreate(10, sizeof(stBleMessage));
+
+    // no connection w/o pin
+    if (pin == 0)
+        return;
+
+    m_pin = pin;
 
     // Initialize NimBLE, no device name specified as we are not advertising
     NimBLEDevice::init("");
@@ -336,21 +400,12 @@ void LevoEsp32Ble::Init( uint32_t pin )
     
     // Optional: set any devices you don't want to get advertisments from 
     // NimBLEDevice::addIgnored(NimBLEAddress ("aa:bb:cc:dd:ee:ff")); 
-  
-    // create new scan
-    NimBLEScan* pScan = NimBLEDevice::getScan(); 
-    
-    // create a callback that gets called when advertisers are found
-    pScan->setAdvertisedDeviceCallbacks(new AdvertisedDeviceCallbacks());
-    
-    // Set scan interval (how often) and window (how long) in milliseconds
-    pScan->setInterval(45);
-    pScan->setWindow(15);
-    
-    // Active scan will gather scan response data from advertisers but will use more energy from both devices
-    pScan->setActiveScan(true);
-    // Start scanning for advertisers for the scan time specified (in seconds) 0 = forever, optional callback for when scanning stops. 
-    pScan->start(LevoEsp32Ble::m_scanTime, scanEndedCB);
+ 
+    if( bBtEnabled )
+    {
+        m_bAutoReconnect = true;
+        startScan();
+    }
 }
 
 bool LevoEsp32Ble::Update( stBleVal& bleVal )
