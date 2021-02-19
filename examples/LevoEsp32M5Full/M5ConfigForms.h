@@ -1,3 +1,11 @@
+/*
+ *  Created: 19/02/2021
+ *      Author: Bernd Woköck
+ *
+ *  Configuration forms for settings
+ *
+*/
+
 #ifndef M5CONFIG_FORMS_H
 #define M5CONFIG_FORMS_H
 
@@ -22,11 +30,15 @@ public:
         RET_NO,
     } enMsgBoxReturn;
 
+    // main entry point for config menues
     void ShowMenu(Preferences & prefs);
 
+    // Message box
+    static enMsgBoxReturn MsgBox(const char* msg, enMsgBoxButtons type = CONFIRM);
+
 protected:
-    ButtonColors on_clrs = { GREEN, WHITE, WHITE };
-    ButtonColors off_clrs = { BLACK, WHITE, WHITE };
+    static ButtonColors on_clrs;
+    static ButtonColors off_clrs;
 
     // menu items
     typedef enum
@@ -60,9 +72,6 @@ protected:
     void OnCmdClockWifi(Preferences& prefs);
     void OnCmdScreen(Preferences& prefs);
     void OnCmdClearAll(Preferences& prefs);
-
-    // Message box
-    enMsgBoxReturn MsgBox(const char * msg, enMsgBoxButtons type = CONFIRM);
 };
 
 #endif // M5CONFIG_FORMS_H

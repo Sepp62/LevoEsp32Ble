@@ -1,5 +1,14 @@
-// API Doc
-// https://docs.m5stack.com/#/en/arduino/arduino_home_page?id=m5core2_api
+/*
+ *
+ *  Created: 01/02/2021
+ *      Author: Bernd Woköck
+ *
+ * main entry point for display of all data values on M5
+ * 
+ * API Doc
+ * https://docs.m5stack.com/#/en/arduino/arduino_home_page?id=m5core2_api
+ *
+ */
 
 #include "Arduino.h"
 
@@ -22,9 +31,13 @@ extern const uint8_t img_sdgray_map[];
 M5FieldThird thirdField;
 M5FieldHalf  halfField;
 
-void M5Screen::ShowValue(DisplayData::enIds id, float val, DisplayData& dispData)
+void M5Screen::ShowValue(enIds id, float val, DisplayData& dispData)
 {
     char strVal[20];
+
+    // buffer value in case of screen change
+    if( id < NUM_ELEMENTS )
+      valueBuffer[id] = val;
 
     const DisplayData::stDisplayData* pDesc = dispData.GetDescription(id);
     if (pDesc && pDesc->nWidth < sizeof( strVal ) )
@@ -32,7 +45,7 @@ void M5Screen::ShowValue(DisplayData::enIds id, float val, DisplayData& dispData
         dtostrf(val, pDesc->nWidth, pDesc->nPrecision, strVal );
         
         int idx = idToIdx[id];
-        if (idx >= DisplayData::numElements)
+        if (idx < 0 || idx >= numElements)
             return;
         
         // render value
@@ -41,21 +54,34 @@ void M5Screen::ShowValue(DisplayData::enIds id, float val, DisplayData& dispData
     }
 }
 
-void M5Screen::RenderEmptyValue(stRender& render, const DisplayData::stDisplayData* pDesc)
+void M5Screen::RenderEmptyValue(stRender& render, const stDisplayData* pDesc)
 {
     char strVal[20];
     dtostrf( 0.0f, pDesc->nWidth, pDesc->nPrecision, strVal);
     render.pField->RenderValue( strVal, render.x, render.y, pDesc, M5Field::OFFLINE );
 }
 
-void M5Screen::Init(DisplayData& dispData)
+DisplayData::enIds M5Screen::GetIdFromIdx(enScreens nScreen, int i)
 {
+    if (i < numElements)
+        return order[nScreen][i];
+    else
+        return UNKNOWN;
+}
+
+void M5Screen::Init(enScreens nScreen, DisplayData& dispData)
+{
+    M5.Lcd.clear();
+
+    // reset lookup table
+    memset(idToIdx, -1, sizeof(idToIdx));
+
     // build layout from id order 
     int i, x = 0, y = START_Y, bottom = 0;
     for (i = 0; i < DisplayData::numElements; i++)
     {
         // get data id
-        DisplayData::enIds id = dispData.GetIdFromIdx(i);
+        DisplayData::enIds id = GetIdFromIdx(nScreen, i);
         if (id == DisplayData::UNKNOWN)
             continue;
         
@@ -88,12 +114,46 @@ void M5Screen::Init(DisplayData& dispData)
             fldRender[i].x = 0;
         }
 
-        // render frame and empty value
+        // render frame and buffered or empty value
         fldRender[i].pField->RenderFrame(fldRender[i].x, fldRender[i].y, pDesc);
-        RenderEmptyValue(fldRender[i], pDesc);
+        if( valueBuffer[id] != FLOAT_UNDEFINED )
+            ShowValue( id, valueBuffer[id], dispData);
+        else
+            RenderEmptyValue(fldRender[i], pDesc);
 
         // remember bottom of highest element 
         bottom = max(bottom, (int)fldRender[i].pField->GetMetrics().rcBoundHeight);
+    }
+
+    // Buttons
+    UpdateButtonBar(nScreen);
+
+    DrawBluetoothIcon(lastBleStatus);
+}
+
+void M5Screen::UpdateButtonBar(enScreens nScreen)
+{
+    M5.Lcd.setFreeFont(FF1);
+    M5.Lcd.setTextSize(1);
+    // M5.Lcd.setTextColor(TFT_GREEN, TFT_BLACK);
+    M5.Lcd.setTextDatum(TC_DATUM);
+    M5.Lcd.setTextColor((nScreen == SCREEN_A) ? TFT_WHITE : TFT_GREEN, TFT_BLACK);
+    M5.Lcd.drawString("Data A", 55, 226, 2);
+    M5.Lcd.setTextColor((nScreen == SCREEN_B) ? TFT_WHITE : TFT_GREEN, TFT_BLACK);
+    M5.Lcd.drawString("Data B", 160, 226, 2);
+    M5.Lcd.setTextColor((nScreen == SCREEN_C) ? TFT_WHITE : TFT_GREEN, TFT_BLACK);
+    M5.Lcd.drawString("Tune", 265, 226, 2);
+}
+
+void M5Screen::DrawBluetoothIcon(LevoEsp32Ble::enBleStatus bleStatus)
+{
+    switch (bleStatus)
+    {
+    case LevoEsp32Ble::SWITCHEDOFF:  M5.Lcd.drawBitmap(1, 1, 20, 26, btblack_map); break;
+    case LevoEsp32Ble::CONNECTED:    M5.Lcd.drawBitmap(1, 1, 20, 26, btblue_map); break;
+    case LevoEsp32Ble::CONNECTING:   M5.Lcd.drawBitmap(1, 1, 20, 26, btyellow_map); break;
+    case LevoEsp32Ble::OFFLINE:      M5.Lcd.drawBitmap(1, 1, 20, 26, btgray_map); break;
+    case LevoEsp32Ble::AUTHERROR:    M5.Lcd.drawBitmap(1, 1, 20, 26, btred_map); break;
     }
 }
 
@@ -102,18 +162,10 @@ bool M5Screen::ShowSysStatus(SystemStatus& sysStatus)
     bool ret = false;
 
     // Show BLE status
-    LevoEsp32Ble::enBleStatus bleStatus;
-    if (sysStatus.IsNewBleStatus(bleStatus))
+    if (sysStatus.IsNewBleStatus(lastBleStatus) )
     {
-        switch (bleStatus)
-        {
-        case LevoEsp32Ble::SWITCHEDOFF:  M5.Lcd.drawBitmap(1, 1, 20, 26, btblack_map); break;
-        case LevoEsp32Ble::CONNECTED:    M5.Lcd.drawBitmap(1, 1, 20, 26, btblue_map); break;
-        case LevoEsp32Ble::CONNECTING:   M5.Lcd.drawBitmap(1, 1, 20, 26, btyellow_map); break;
-        case LevoEsp32Ble::OFFLINE:      M5.Lcd.drawBitmap(1, 1, 20, 26, btgray_map); break;
-        case LevoEsp32Ble::AUTHERROR:    M5.Lcd.drawBitmap(1, 1, 20, 26, btred_map);break;
-        }
-        ret = true;
+        DrawBluetoothIcon(lastBleStatus);
+        ret = true; // indicate changed ble status 
     }
 
     // show battery status every 10 ticks (1000 ms)

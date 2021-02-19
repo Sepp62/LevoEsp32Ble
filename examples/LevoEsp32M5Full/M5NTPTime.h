@@ -1,3 +1,12 @@
+/*
+ *
+ *  Created: 01/02/2021
+ *      Author: Bernd Woköck
+ *
+ *  Setting RTC by NTP
+ *
+ */
+
 #ifndef M5NTPTIME_H
 #define M5NTPTIME_H
 

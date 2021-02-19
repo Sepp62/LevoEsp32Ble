@@ -1,3 +1,12 @@
+/*
+ *
+ *  Created: 01/02/2021
+ *      Author: Bernd Woköck
+ *
+ * management of system M5 status
+ *
+*/
+
 #include <M5Core2.h>
 #include "LevoEsp32Ble.h"
 
@@ -27,8 +36,7 @@ public:
 
     void UpdateBleStatus( LevoEsp32Ble::enBleStatus bleStatus );
     bool IsNewBleStatus(LevoEsp32Ble::enBleStatus& bleStatus);
-
-    void ResetBleStatus(){ newBleStatus = LevoEsp32Ble::OFFLINE; lastBleStatus = LevoEsp32Ble::UNDEFINED;  }
+    void ResetBleStatus(LevoEsp32Ble::enBleStatus status = LevoEsp32Ble::OFFLINE);
 };
 
 #endif // SYSTEMSTATUS_H

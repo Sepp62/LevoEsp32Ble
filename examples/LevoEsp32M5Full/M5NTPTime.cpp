@@ -1,3 +1,12 @@
+/*
+ *
+ *  Created: 01/02/2021
+ *      Author: Bernd Woköck
+ *
+ *  Setting RTC by NTP
+ *
+ */
+
 #include "M5NTPTime.h"
 
 I2C_BM8563 M5NTPTime::rtc(I2C_BM8563_DEFAULT_ADDRESS, Wire1);

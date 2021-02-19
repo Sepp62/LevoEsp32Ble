@@ -1,3 +1,11 @@
+/*
+ *
+ *  Created: 01/02/2021
+ *      Author: Bernd Woköck
+ *
+ * management of peripheral components of M5
+ *
+*/
 
 #ifndef M5SYSTEM_H
 #define M5SYSTEM_H

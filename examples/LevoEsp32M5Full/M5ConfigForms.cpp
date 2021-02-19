@@ -1,6 +1,10 @@
 /*
-*  Configuration forms
-* https://docs.m5stack.com/#/en/arduino/arduino_home_page?id=m5core2_api
+ *  Created: 01/02/2021
+ *      Author: Bernd Woköck
+ *
+ *  Configuration forms for settings
+ * 
+ * https://docs.m5stack.com/#/en/arduino/arduino_home_page?id=m5core2_api
 */
 
 #include <M5Core2.h>
@@ -10,6 +14,9 @@
 #include "M5Keyboard.h"
 #include "M5ConfigFormWifi.h"
 #include "FileLogger.h"
+
+ButtonColors M5ConfigForms::on_clrs = { GREEN, WHITE, WHITE };
+ButtonColors M5ConfigForms::off_clrs = { BLACK, WHITE, WHITE };
 
 // simple full screen centered two line message
 M5ConfigForms::enMsgBoxReturn M5ConfigForms::MsgBox(const char* msg, enMsgBoxButtons type)
@@ -22,6 +29,8 @@ M5ConfigForms::enMsgBoxReturn M5ConfigForms::MsgBox(const char* msg, enMsgBoxBut
 
     // print message
     M5.Lcd.clear(TFT_BLACK);
+    M5.Lcd.pushState();
+
     TFT_eSprite lcdbuff = TFT_eSprite(&M5.Lcd);
     lcdbuff.createSprite(320, 240);
     lcdbuff.setFreeFont(&EVA_20px);
@@ -35,7 +44,7 @@ M5ConfigForms::enMsgBoxReturn M5ConfigForms::MsgBox(const char* msg, enMsgBoxBut
 
     // show buttons
     Button * b1 = NULL, * b2 = NULL;
-    const int cx = 100, cy = M5.Lcd.fontHeight(GFXFF) + 6;
+    const int cx = 100, cy = 35;
     const int bx = M5.Lcd.width()/4 - cx/2;
     const int by = M5.Lcd.height()/4 * 3;
     switch (type)
@@ -91,6 +100,8 @@ M5ConfigForms::enMsgBoxReturn M5ConfigForms::MsgBox(const char* msg, enMsgBoxBut
         b2->erase();
         delete b2;
     }
+
+    M5.Lcd.popState();
 
     return ret;
 }
@@ -232,7 +243,7 @@ void M5ConfigForms::OnCmdBtPin(Preferences& prefs)
     Serial.println("btPin...");
     String str = "";
     M5Keyboard keyb;
-    bool ret = keyb.Show( str, "Enter bluetooth pin:", M5Keyboard::KEY_MODE_NUMBER);
+    bool ret = keyb.Show( str, "Enter bluetooth pin:", M5Keyboard::KEY_MODE_NUMERIC );
     Serial.println( str );
     if ( ret )
     {

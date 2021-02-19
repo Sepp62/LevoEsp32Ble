@@ -15,42 +15,42 @@
 #define COLS (7)
 #define ROWS (4)
 
-#define MAX_SHIFT_MODE (4)
+#define MAX_SHIFT_MODE (5)
 
 #define COLOR_FRAME M5.Lcd.color565(124,163,121)
 #define COLOR_TITLE M5.Lcd.color565(130,130,130)
 
 const char keymap[MAX_SHIFT_MODE][ROWS][COLS] =
 {
-  {
-	{'a', 'b', 'c', 'd', 'e', 'f', 'g'},
-	{'h', 'i', 'j', 'k', 'l', 'm', 'n'},
-	{'o', 'p', 'q', 'r', 's', 't', 'u'},
-	{'v', 'w', 'x', 'y', 'z', ' ', '\002'}, // 002 = mode
+  { // KEY_MODE_LETTER
+    {'a', 'b', 'c', 'd', 'e', 'f', 'g'},
+    {'h', 'i', 'j', 'k', 'l', 'm', 'n'},
+    {'o', 'p', 'q', 'r', 's', 't', 'u'},
+    {'v', 'w', 'x', 'y', 'z', ' ', '\002'}, // 002 = mode
   },
-  {
-	{'A', 'B', 'C', 'D', 'E', 'F', 'G'},
-	{'H', 'I', 'J', 'K', 'L', 'M', 'N'},
-	{'O', 'P', 'Q', 'R', 'S', 'T', 'U'},
-	{'V', 'W', 'X', 'Y', 'Z', ' ', '\002'}, // 002 = mode
+  { // KEY_MODE_LETTERSHIFT
+    {'A', 'B', 'C', 'D', 'E', 'F', 'G'},
+    {'H', 'I', 'J', 'K', 'L', 'M', 'N'},
+    {'O', 'P', 'Q', 'R', 'S', 'T', 'U'},
+    {'V', 'W', 'X', 'Y', 'Z', ' ', '\002'}, // 002 = mode
   },
-  {
+  { // KEY_MODE_NUMBER
     {'7', '8', '9', '+', '[', ']', ' ', },
     {'4', '5', '6', '/', '\\', ' ', ' '},
     {'1', '2', '3', '-', '\'', ' ', ' '},
     {',', '0', '.', '=', ';', '`', '\002'}, // 002 = mode
-/*
-	{'`', '1', '2', '3', '4', '5', '6'},
-	{'7', '8', '9', '0', '-', '=', '['},
-	{']', '\\', ';', '\'', ',', '.', '/'},
-	{' ', ' ', ' ', ' ', ' ', ' ', '\002'}, // 002 = mode
-    */
   },
-  {
-	{'~', '!', '@', '#', '$', '%', '^'},
-	{'&', '*', '(', ')', '_', '+', '{'},
-	{'}', '|', ':', '"', '<', '>', '?'},
-	{' ', ' ', ' ', ' ', ' ', ' ', '\002'}, // 002 = mode
+  { // KEY_MODE_SYM
+    {'~', '!', '@', '#', '$', '%', '^'},
+    {'&', '*', '(', ')', '_', '+', '{'},
+    {'}', '|', ':', '"', '<', '>', '?'},
+    {' ', ' ', ' ', ' ', ' ', ' ', '\002'}, // 002 = mode
+  },
+  { // KEY_MODE_NUMERIC
+    {'7', '8', '9', ' ', ' ', ' ', ' ' },
+    {'4', '5', '6', ' ', ' ', ' ', ' ' },
+    {'1', '2', '3', ' ', ' ', ' ', ' ' },
+    {' ', '0', ' ', ' ', ' ', ' ', ' ' },
   },
 };
 
@@ -62,7 +62,7 @@ bool _keyboard_done = false;
 bool _keyboard_cancel = false;
 uint32_t _cursor_last;
 bool _cursor_state = false;
-ButtonColors _bc_on = {BLUE, GREEN, COLOR_FRAME};
+ButtonColors _bc_on = {GREEN, BLACK, COLOR_FRAME};
 ButtonColors _bc_off = {BLACK, GREEN, COLOR_FRAME};
 
 bool M5Keyboard::Show(String& text, const char* title, key_mode_t keyMode )
@@ -75,7 +75,10 @@ bool M5Keyboard::Show(String& text, const char* title, key_mode_t keyMode )
    M5.Lcd.clear(TFT_BLACK);
 
   _initKeyboard(text, title, keyMode);
-  _drawKeyboard();
+  if( keyMode == KEY_MODE_NUMERIC )
+      _drawKeyboardNumeric();
+  else
+      _drawKeyboard();
   _keyboard_done = false;
   _keyboard_cancel = false;
   while(_keyboard_done == false && _keyboard_cancel == false)
@@ -192,6 +195,36 @@ void M5Keyboard::_deinitKeyboard()
   }
 }
 
+void M5Keyboard::_drawKeyboardNumeric()
+{
+    int x, y, cx = 105, cy = KEY_H;
+
+    for (int r = 0; r < ROWS; r++)
+    {
+        for (int c = 0; c < COLS; c++)
+        {
+            x = (KEYBOARD_X + (c * cx));
+            y = (KEYBOARD_Y + (r * cy));
+            _button_list[r][c]->set(x, y, cx, cy);
+
+            const int key_page = 4;
+
+            char ch = keymap[key_page][r][c];
+
+            if( ch != ' ' )
+            {
+                char buf[2] = { '\0', '\0' };
+                buf[0] = ch;
+                _button_list[r][c]->setFreeFont(FF3);
+                _button_list[r][c]->setLabel( buf );
+                _button_list[r][c]->draw();
+            }
+            else
+                _button_list[r][c]->hide();
+        }
+    }
+}
+
 void M5Keyboard::_drawKeyboard()
 {
   int x, y;
@@ -211,6 +244,7 @@ void M5Keyboard::_drawKeyboard()
       case KEY_MODE_LETTERSHIFT: key_page = 1; break;
       case KEY_MODE_NUMBER:      key_page = 2; break;
       case KEY_MODE_SYM:         key_page = 3; break;
+      case KEY_MODE_NUMERIC:     key_page = 4; break;
       }
 
       String key;
@@ -280,9 +314,9 @@ void M5Keyboard::_buttonEvent(Event& e)
   {
     if(String(b.label()) == "Mode")
     {
-        int key_mode = _key_mode;
-        key_mode++;
-        key_mode = key_mode % NUM_KEY_MODES;
+        int key_mode = _key_mode + 1;
+        if( key_mode >= NUM_KEY_MODES - 1) // omit "numeric" layout 
+            key_mode = KEY_MODE_LETTER;
         _key_mode = (key_mode_t)key_mode;
         M5Keyboard::_drawKeyboard();
       return;

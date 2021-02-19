@@ -1,6 +1,6 @@
 = Levo BLE ESP32 Data Logger =
 
-Protocol decoder for Specialized Levo pedelec bike via bluetooth.
+   Protocol library  for Specialized Levo pedelec bike via bluetooth.
    For ESP32
 
   Version history:
@@ -8,4 +8,6 @@ Protocol decoder for Specialized Levo pedelec bike via bluetooth.
     0.90   01/01/2021  created, example for M5Core2 hardware 
     0.91   04/02/2021  added: config forms, backlight dim
     0.92   07/02/2021  csv log formats added, battery capacity calculation changed
-  
+    0.93   13/02/2021  more BLE functionality/data fields added
+    0.94   16/02/2021  read/write functionality and "tune" dialog
+

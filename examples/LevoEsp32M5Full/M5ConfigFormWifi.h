@@ -1,3 +1,12 @@
+/*
+ *
+ *  Created: 19/02/2021
+ *      Author: Bernd Woköck
+ *
+ *  WIFI selection form
+ *
+ */
+
 #ifndef M5CONFIG_FORMWIFI_H
 #define M5CONFIG_FORMWIFI_H
 

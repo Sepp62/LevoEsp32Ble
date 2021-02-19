@@ -1,3 +1,12 @@
+/*
+ *
+ *  Created: 01/02/2021
+ *      Author: Bernd Woköck
+ *
+ * logging data values to a file
+ *
+ */
+
 #include <M5Core2.h>
 #include "FileLogger.h"
 
@@ -27,6 +36,7 @@ int8_t FileLogger::PercentFull()
 bool FileLogger::Open()
 {
     // reset timestamp and start distance
+    tiOpenFile = millis();
     tiStart = 0;
     kmStart = 0.0f;
     kmLast = 0.0f;
@@ -273,9 +283,30 @@ bool FileLogger::LogCsvTable(DisplayData::enIds id, LevoEsp32Ble::stBleVal& bleV
     // write header to csv
     if (bFirstLine)
     {
+        // collect data for 5 seconds
+        uint32_t tiWait  = (millis() - tiOpenFile) / 1000L;
+        if( tiWait < 5 )
+            return true;
+
+        // show static settings (hopefully collected within the first 10 seconds)
+        for (i = 0; i < DisplayData::numElements; i++)
+        {
+            if (isStaticData((DisplayData::enIds)i))
+            {
+                float value = allValues[(DisplayData::enIds)i];
+                LogDump((DisplayData::enIds)i, value, DispData, strLog);
+                Writeln(strLog.c_str());
+                Serial.println(strLog.c_str());
+            }
+        }
+
+        // head line
         strLog = "Time\tDist\tId";
         for ( i = 0; i < DisplayData::numElements; i++)
         {
+            if (isStaticData((DisplayData::enIds)i))
+                continue;
+
             strLog += "\t";
             const DisplayData::stDisplayData* pDesc = DispData.GetDescription((DisplayData::enIds)i);
             if( pDesc )
@@ -309,6 +340,9 @@ bool FileLogger::LogCsvTable(DisplayData::enIds id, LevoEsp32Ble::stBleVal& bleV
     // append all values
     for ( i = 0; i < DisplayData::numElements; i++)
     {
+        if(isStaticData((DisplayData::enIds)i ) )
+            continue;
+
         strLog += "\t";
 
         const DisplayData::stDisplayData* pDesc = DispData.GetDescription((DisplayData::enIds)i);

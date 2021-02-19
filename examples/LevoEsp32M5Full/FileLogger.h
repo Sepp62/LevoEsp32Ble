@@ -1,3 +1,12 @@
+/*
+ *
+ *  Created: 01/02/2021
+ *      Author: Bernd Woköck
+ *
+ * logging data values to a file
+ *
+ */
+
 #ifndef FILE_LOGGER_H
 #define FILE_LOGGER_H
 
@@ -24,6 +33,7 @@ public:
     int8_t PercentFull();
 
 protected:
+    uint32_t tiOpenFile = 0;
     uint32_t tiStart = 0;
     float    kmStart = 0.0f;
     float    kmLast  = 0.0f;
@@ -40,6 +50,23 @@ protected:
 
     // for CSV_TABLE log
     float allValues[DisplayData::numElements];
+
+    // omit some values in table log
+    uint32_t staticDataMask =
+        1 << DisplayData::BLE_BATT_SIZEWH |
+        1 << DisplayData::BLE_BATT_HEALTH |
+        1 << DisplayData::BLE_BATT_CHARGECYCLES |
+        1 << DisplayData::BLE_MOT_PEAKASSIST1 |
+        1 << DisplayData::BLE_MOT_PEAKASSIST2 |
+        1 << DisplayData::BLE_MOT_PEAKASSIST3 |
+        1 << DisplayData::BLE_MOT_SHUTTLE |
+        1 << DisplayData::BLE_BIKE_WHEELCIRC |
+        1 << DisplayData::BLE_BIKE_ASSISTLEV1 |
+        1 << DisplayData::BLE_BIKE_ASSISTLEV2 |
+        1 << DisplayData::BLE_BIKE_ASSISTLEV3 |
+        1 << DisplayData::BLE_BIKE_FAKECHANNEL |
+        1 << DisplayData::BLE_BIKE_ACCEL;
+    bool isStaticData( DisplayData::enIds id ) { return staticDataMask &  (1<<id); }
 };
 
 #endif // FILE_LOGGER_H

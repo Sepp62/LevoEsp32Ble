@@ -1,3 +1,11 @@
+/*
+ *  Created: 01/02/2021
+ *      Author: Bernd Woköck
+ *
+ *  Rendering a data value field on M5 screen
+ *
+ */
+
 #include <M5Core2.h>
 #include "DisplayData.h"
 
@@ -72,7 +80,7 @@ protected:
         8,                   // uint8_t txtHeightLabel;
         16,                  // uint8_t txtHeightVal;
         M5.Lcd.width() / 3 , // uint16_t rcBoundWidth;
-        40,                  // uint16_t rcBoundHeight;
+        38,                  // uint16_t rcBoundHeight;
     };
 public:
     virtual const stMetrics& GetMetrics() { return metrics; }
@@ -88,7 +96,7 @@ protected:
         8,                   // uint8_t txtHeightLabel;
         16,                  // uint8_t txtHeightVal;
         M5.Lcd.width() / 2 , // uint16_t rcBoundWidth;
-        40,                  // uint16_t rcBoundHeight;
+        38,                  // uint16_t rcBoundHeight;
     };
 public:
     virtual const stMetrics& GetMetrics() { return metrics; }

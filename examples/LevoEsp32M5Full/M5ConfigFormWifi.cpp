@@ -1,7 +1,11 @@
 /*
-*  WIFI selection form
-* 
-*/
+ * 
+ *  Created: 01/02/2021
+ *      Author: Bernd Woköck
+ *
+ *  WIFI selection form
+ * 
+ */
 
 #include <WiFi.h>
 #include "M5ConfigFormWifi.h"

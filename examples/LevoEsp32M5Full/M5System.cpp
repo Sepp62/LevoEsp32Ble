@@ -1,7 +1,14 @@
-
-// API Doc
-// https://docs.m5stack.com/#/en/arduino/arduino_home_page?id=m5core2_api
-// https://lvgl.io/tools/imageconverter
+/*
+ *
+ *  Created: 01/02/2021
+ *      Author: Bernd Woköck
+ *
+ * management of peripheral components of M5
+ *
+ * API Doc
+ * https://docs.m5stack.com/#/en/arduino/arduino_home_page?id=m5core2_api
+ *
+*/
 
 #include "M5System.h"
 
@@ -178,7 +185,7 @@ void M5System::Init()
 
     DisCoverScrollbuff.createSprite(320, 60);
     checkI2cAddr();
-    coverScrollText("LEVO BLE Version 0.92", M5.Lcd.color565(SUCCESS_COLOR));
+    coverScrollText("LEVO BLE Version 0.94", M5.Lcd.color565(SUCCESS_COLOR));
     DisCoverScrollbuff.deleteSprite();
 
     delay(500);

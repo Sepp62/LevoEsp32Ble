@@ -4,9 +4,13 @@
  *      Author: Bernd Woköck
  *
  *  Derived from NimBLE client sample: H2zero: https://github.com/h2zero/NimBLE-Arduino
+ * 
+ *  Contains all functionality to establish, maintain and control bluetooth connection to the Levo bike
+ *  Implements notification receiver and data decoder.
+ *  Basic functions for read and write. Use class "LevoReadWrite" for high level read/write access.
+ * 
  */
 
-#include <NimBLEDevice.h>
 #include "LevoEsp32Ble.h"
 
 // bluetooth pin
@@ -20,6 +24,7 @@ bool     LevoEsp32Ble::m_doConnect = false;
 uint32_t LevoEsp32Ble::m_scanTime = 0; /** 0 = scan forever */
 bool     LevoEsp32Ble::m_queueOverrun = false;
 bool     LevoEsp32Ble::m_bAutoReconnect = true;
+bool     LevoEsp32Ble::m_bSubscribed = false;
 
 // ble message queue from bluetooth stack running on core 0 to main thread on core 1
 QueueHandle_t LevoEsp32Ble::m_bleMsgQueue;
@@ -55,11 +60,11 @@ class ClientCallbacks : public NimBLEClientCallbacks
     bool onConnParamsUpdateRequest(NimBLEClient* pClient, const ble_gap_upd_params* params)
     {
         // accept changed timing, "return false" is not liked by Levo
-        Serial.print("onConnParamsUpdateRequest(min,max,lat,to):");
-        Serial.print(params->itvl_min); Serial.print(", "); // in 1.25ms units
-        Serial.print(params->itvl_max); Serial.print(", "); // in 1.25ms units
-        Serial.print(params->latency); Serial.print(", ");
-        Serial.println(params->supervision_timeout);  // in 10ms
+        // Serial.print("onConnParamsUpdateRequest(min,max,lat,to):");
+        // Serial.print(params->itvl_min); Serial.print(", "); // in 1.25ms units
+        // Serial.print(params->itvl_max); Serial.print(", "); // in 1.25ms units
+        // Serial.print(params->latency); Serial.print(", ");
+        // Serial.println(params->supervision_timeout);  // in 10ms
         return true;
     };
     
@@ -142,55 +147,79 @@ void scanEndedCB(NimBLEScanResults results)
 // Create a single global instance of the callback class to be used by all clients
 static ClientCallbacks clientCB;
 
+// get int value from buffer
+float LevoEsp32Ble::int2float(uint8_t* pData, size_t length, size_t valueSize, int bufOffset )
+{
+    uint32_t val = 0;
+
+    // autosize, assume value needs whole buffer
+    if( valueSize == -1 )
+        valueSize = length - bufOffset;
+
+    // check buffer length
+    if( (bufOffset + valueSize) > length )
+        valueSize = length - bufOffset;
+
+    // get integer value
+    if (valueSize == 1)
+        val = pData[2];
+    else if (valueSize == 2)
+        val = pData[2] + (((uint32_t)(pData[3])) << 8);
+    else if (valueSize == 4)
+        val = pData[2] + (((uint32_t)(pData[3])) << 8) + (((uint32_t)(pData[4])) << 16) + (((uint32_t)(pData[5])) << 24);
+
+    return (float)val;
+}
+
+
 // decode our BLE message to get Levo data
 //////////////////////////////////////////
-bool LevoEsp32Ble::DecodeMessage(uint8_t* pData, size_t length, LevoEsp32Ble::stBleVal & bleVal )
+bool LevoEsp32Ble::DecodeMessage(uint8_t* pData, size_t length, stBleVal & bleVal )
 {
     bleVal.dataType  = LevoEsp32Ble::UNKNOWN;
     bleVal.unionType = FLOAT;
 
-    uint8_t  sender = pData[0];
+    uint8_t  sender  = pData[0];
     uint8_t  channel = pData[1];
-    uint32_t val = 0L;
-
-    // calculate integer value from data length (TODO works for int values only)
-    if (length == 3)
-        val = pData[2];
-    else if (length == 4)
-        val = pData[2] + (((uint32_t)(pData[3])) << 8);
-    else if (length == 6)
-        val = pData[2] + (((uint32_t)(pData[3])) << 8) + (((uint32_t)(pData[4])) << 16) + (((uint32_t)(pData[5])) << 24);
 
     switch (sender)
     {
     case 0: // battery
         switch (channel)
         {
-        case 1:  bleVal.dataType = LevoEsp32Ble::BATT_ENERGY;         bleVal.fVal = 1.11f * (float)val; break; // 00 01 e4 00 Batt Wh? 4Wh per %  -> 51%->228  52%->233 33%->146 33%->144   full=450Wh
-        case 2:  bleVal.dataType = LevoEsp32Ble::BATT_HEALTH;         bleVal.fVal = val; break; // 00 02 64
-        case 3:  bleVal.dataType = LevoEsp32Ble::BATT_TEMP;           bleVal.fVal = val; break; // 00 03 13
-        case 4:  bleVal.dataType = LevoEsp32Ble::BATT_CHARGECYCLES;   bleVal.fVal = val; break; // 00 04 0d 00
-        case 5:  bleVal.dataType = LevoEsp32Ble::BATT_VOLTAGE;        bleVal.fVal = 28.0f + ((float)val) / 10.0f; break; // 00 05 50
-        case 6:  bleVal.dataType = LevoEsp32Ble::BATT_CURRENT;        bleVal.fVal = ((float)val) / 10.0f; break; // 00 06 00
-        case 12: bleVal.dataType = LevoEsp32Ble::BATT_CHARGEPERCENT;  bleVal.fVal = val; break; // 00 0c 34
+        case 0:  bleVal.dataType = BATT_SIZEWH;         bleVal.fVal = round(int2float(pData, length, 2) * 1.1111f); break; // 00 00 c2 01 450Wh * 1.1111
+        case 1:  bleVal.dataType = BATT_REMAINWH;       bleVal.fVal = round(int2float(pData, length, 2) * 1.1111f); break; // 00 01 e4 00 full= 450Wh*1.1111
+        case 2:  bleVal.dataType = BATT_HEALTH;         bleVal.fVal = int2float(pData, length, 1); break;                  // 00 02 64
+        case 3:  bleVal.dataType = BATT_TEMP;           bleVal.fVal = int2float(pData, length, 1); break;                  // 00 03 13
+        case 4:  bleVal.dataType = BATT_CHARGECYCLES;   bleVal.fVal = int2float(pData, length, 2); break;                  // 00 04 0d 00
+        case 5:  bleVal.dataType = BATT_VOLTAGE;        bleVal.fVal = int2float(pData, length, 1)/10.0f + 28.0f; break;    // 00 05 50
+        case 6:  bleVal.dataType = BATT_CURRENT;        bleVal.fVal = int2float(pData, length, 1)/10.0f; break;            // 00 06 00
+        case 12: bleVal.dataType = BATT_CHARGEPERCENT;  bleVal.fVal = int2float(pData, length, 1); break;                  // 00 0c 34
         }
         break;
     case 1: // motor
         switch (channel)
         {
-        case 0:  bleVal.dataType = LevoEsp32Ble::RIDER_POWER;     bleVal.fVal = val; break;                      // 01 00 00 00
-        case 1:  bleVal.dataType = LevoEsp32Ble::MOT_CADENCE;     bleVal.fVal = ((float)val) / 10.0f; break;     // 01 01 33 00
-        case 2:  bleVal.dataType = LevoEsp32Ble::MOT_SPEED;       bleVal.fVal = ((float)val) / 10.0f; break;     // 01 02 61 00
-        case 4:  bleVal.dataType = LevoEsp32Ble::MOT_ODOMETER;    bleVal.fVal = ((float)val) / 1000.0f; break;   // 01 04 9e d1 39 00
-        case 5:  bleVal.dataType = LevoEsp32Ble::MOT_ASSISTLEVEL; bleVal.fVal = val; break;                      // 01 05 02 00
-        case 7:  bleVal.dataType = LevoEsp32Ble::MOT_TEMP;        bleVal.fVal = val; break;                      // 01 07 19
-        case 12: bleVal.dataType = LevoEsp32Ble::MOT_POWER;       bleVal.fVal = ((float)val) / 10.0f; break;     // 01 0c 02 00
+        case 0:  bleVal.dataType = RIDER_POWER;     bleVal.fVal = int2float(pData, length, 2);         break;     // 01 00 00 00
+        case 1:  bleVal.dataType = MOT_CADENCE;     bleVal.fVal = int2float(pData, length, 2)/10.0f;   break;     // 01 01 33 00
+        case 2:  bleVal.dataType = MOT_SPEED;       bleVal.fVal = int2float(pData, length, 2)/10.0f;   break;     // 01 02 61 00
+        case 4:  bleVal.dataType = MOT_ODOMETER;    bleVal.fVal = int2float(pData, length, 4)/1000.0f; break;     // 01 04 9e d1 39 00
+        case 5:  bleVal.dataType = MOT_ASSISTLEVEL; bleVal.fVal = int2float(pData, length, 2);         break;     // 01 05 02 00
+        case 7:  bleVal.dataType = MOT_TEMP;        bleVal.fVal = int2float(pData, length, 1);         break;     // 01 07 19
+        case 12: bleVal.dataType = MOT_POWER;       bleVal.fVal = int2float(pData, length, 2)/10.0f;   break;     // 01 0c 02 00
+        case 16: bleVal.dataType = MOT_PEAKASSIST;  bleVal.unionType = BINARY; bleVal.raw.len = 3; memcpy( bleVal.raw.data, &pData[2], 3 ); break;  // 01 10 <max1> <max2> <max3> 32
+        case 21: bleVal.dataType = MOT_SHUTTLE;     bleVal.fVal = int2float(pData, length, 1);         break;     // 01 15 00 
         }
         break;
     case 2: // bike settings
         switch (channel)
         {
-        case 0:  bleVal.dataType = LevoEsp32Ble::BIKE_WHEELCIRC; bleVal.fVal = val; break;                       // 02 00 fc 08
+        case 0: bleVal.dataType = BIKE_WHEELCIRC;   bleVal.fVal = int2float(pData, length, 2);         break;     // 02 00 fc 08
+        case 3: bleVal.dataType = BIKE_ASSISTLEV1;  bleVal.fVal = int2float(pData, length, 1);         break;     // 02 03 0a (32)
+        case 4: bleVal.dataType = BIKE_ASSISTLEV2;  bleVal.fVal = int2float(pData, length, 1);         break;     // 02 04 14 (32)
+        case 5: bleVal.dataType = BIKE_ASSISTLEV3;  bleVal.fVal = int2float(pData, length, 1);         break;     // 02 05 32 (32)
+        case 6: bleVal.dataType = BIKE_FAKECHANNEL; bleVal.fVal = int2float(pData, length, 1);         break;     // 02 06 00 -> bit coded
+        case 7: bleVal.dataType = BIKE_ACCEL;       bleVal.fVal = (int2float(pData, length, 2) - 3000.0)/60.0; break;     // 02 07 a0 0f (3000-9000)
         }
         break;
     case 3: // ???
@@ -215,6 +244,7 @@ bool LevoEsp32Ble::DecodeMessage(uint8_t* pData, size_t length, LevoEsp32Ble::st
 void LevoEsp32Ble::Reconnect()
 {
     Serial.println( "Reconnect called" );
+    m_bleStatus = OFFLINE;
     m_bAutoReconnect = true;
     if (s_advDevice == NULL)
     {
@@ -238,6 +268,171 @@ void LevoEsp32Ble::Disconnect()
         }
     }
     m_bAutoReconnect = false;
+}
+
+// subscribe to Levo notifications
+bool LevoEsp32Ble::Subscribe()
+{
+    if (s_advDevice)
+    {
+        Serial.println("Ble Subscribe() called.");
+        return subscribe(NimBLEDevice::getClientByPeerAddress(s_advDevice->getAddress()));
+    }
+    return false;
+}
+
+// unsubscribe to Levo notifications
+bool LevoEsp32Ble::Unsubscribe()
+{
+    if (s_advDevice)
+    {
+        Serial.println("Ble Unsubscribe() called.");
+        return unsubscribe(NimBLEDevice::getClientByPeerAddress(s_advDevice->getAddress()));
+    }
+    return false;
+}
+
+// request a particular message
+void LevoEsp32Ble::RequestBleValue(enLevoBleDataType valueType)
+{
+    uint8_t buf[ 2 ];
+    buf[0] = ((uint16_t)valueType) >> 8; 
+    buf[1] = valueType;
+    requestData(buf, 2);
+}
+
+// read requested value from levo and compare if message type is as requested
+bool LevoEsp32Ble::ReadRequestedBleValue(enLevoBleDataType valueType, stBleVal& bleVal)
+{
+    uint8_t buf[20];
+    size_t length;
+    if ((length = readData(buf, sizeof(buf))) > 0 )
+    {
+        if ( (buf[0] == (((uint16_t)valueType) >> 8)) && (buf[1] == (uint8_t)valueType) )
+            return DecodeMessage(buf, length, bleVal);
+    }
+    return false;
+}
+
+// get characteristic of a particular service/characteristic of a connected device
+NimBLERemoteCharacteristic* LevoEsp32Ble::getCharacteristic(const char* svcUUIDString, const char* chrUUIDString)
+{
+    if (s_advDevice)
+    {
+        NimBLEClient* pClient = NimBLEDevice::getClientByPeerAddress(s_advDevice->getAddress());
+        if (pClient)
+        {
+            NimBLERemoteService* pSvc = nullptr;
+            NimBLERemoteCharacteristic* pChr = nullptr;
+            if ((pSvc = pClient->getService(svcUUIDString)) != nullptr)
+                return pSvc->getCharacteristic(chrUUIDString);
+        }
+    }
+    return nullptr;
+}
+
+// request levo data. Specify the first two bytes of the message (category/channel)
+void LevoEsp32Ble::requestData(const uint8_t* pData, size_t length)
+{
+    NimBLERemoteCharacteristic* pChr = getCharacteristic(LEVO_REQUEST_SERVICE_UUID_STRING, LEVO_REQWRITE_CHAR_UUID_STRING);
+    if( pChr && pChr->canWrite() )
+        pChr->writeValue( pData, length, true );
+}
+
+// read last requested levo data
+size_t LevoEsp32Ble::readData(uint8_t* pData, size_t length)
+{
+    NimBLERemoteCharacteristic* pChr = getCharacteristic(LEVO_REQUEST_SERVICE_UUID_STRING, LEVO_REQREAD_CHAR_UUID_STRING);
+    if (pChr && pChr->canRead() )
+    {
+        std::string val = pChr->readValue();
+        if (val.length() > 0)
+        {
+            int realLength = min(val.length(), length);
+            memcpy(pData, val.data(), realLength );
+            return realLength;
+        }
+    }
+    return 0;
+}
+
+// write levo data
+void LevoEsp32Ble::writeData(const uint8_t* pData, size_t length)
+{
+    NimBLERemoteCharacteristic* pChr = getCharacteristic(LEVO_WRITE_SERVICE_UUID_STRING, LEVO_WRITE_CHAR_UUID_STRING);
+    if (pChr && pChr->canWrite() )
+       pChr->writeValue(pData, length, true);
+}
+
+// subscribe for Levo notications
+bool LevoEsp32Ble::subscribe(NimBLEClient* pClient)
+{
+    bool ret = false;
+
+    if (pClient != nullptr)
+    {
+        NimBLERemoteService* pSvc = nullptr;
+        NimBLERemoteCharacteristic* pChr = nullptr;
+
+        if ((pSvc = pClient->getService(LEVO_DATA_SERVICE_UUID_STRING)) != nullptr)
+        {
+            if ((pChr = pSvc->getCharacteristic(LEVO_DATA_CHAR_UUID_STRING)) != nullptr)
+            {
+                if (pChr->canRead())
+                {
+                    // make an explicit "read" to start authentication
+                    pChr->readValue();
+                }
+
+                if (pChr->canNotify())
+                {
+                    if (!pChr->subscribe(true, notifyCB))
+                    {
+                        // Disconnect if subscribe failed
+                        Serial.println("LEVO notification subscription failed");
+                        pClient->disconnect();
+                        return false;
+                    }
+                    Serial.println("Subscribed to LEVO notifications");
+                    m_bSubscribed = true;
+                    ret = true;
+                }
+            }
+        }
+    }
+    return ret;
+}
+
+bool LevoEsp32Ble::unsubscribe(NimBLEClient* pClient)
+{
+    bool ret = false;
+
+    if( pClient != nullptr)
+    {
+        NimBLERemoteService* pSvc = nullptr;
+        NimBLERemoteCharacteristic* pChr = nullptr;
+
+        if ((pSvc = pClient->getService(LEVO_DATA_SERVICE_UUID_STRING)) != nullptr)
+        {
+            if ((pChr = pSvc->getCharacteristic(LEVO_DATA_CHAR_UUID_STRING)) != nullptr)
+            {
+                if (pChr->canNotify())
+                {
+                    if (!pChr->unsubscribe())
+                    {
+                        // Disconnect if unsubscribe failed
+                        Serial.println("LEVO notification unsubscribe() failed");
+                        pClient->disconnect();
+                        return false;
+                    }
+                    Serial.println("Unsubscribed to LEVO notifications");
+                    m_bSubscribed = false;
+                    ret = true;
+                }
+            }
+        }
+    }
+    return ret;
 }
 
 // Handles the provisioning of clients and connects / interfaces with the server
@@ -310,37 +505,9 @@ bool LevoEsp32Ble::connectToServer()
     Serial.print("RSSI: ");
     Serial.println(pClient->getRssi());
     
-    // Now we can read/write/subscribe the charateristics of the services we are interested in
-    NimBLERemoteService* pSvc = nullptr;
-    NimBLERemoteCharacteristic* pChr = nullptr;
-    NimBLERemoteDescriptor* pDsc = nullptr;
-    
-    if(( pSvc = pClient->getService(LEVO_DATA_SERVICE_UUID_STRING) ) != nullptr )
-    {
-        if(( pChr = pSvc->getCharacteristic(LEVO_DATA_CHAR_UUID_STRING)) != nullptr )
-        {   
-            if(pChr->canRead())
-            {
-                // make an explicit "read" to start authentication
-                pChr->readValue();
-            }
-        
-            if(pChr->canNotify())
-            {
-                if(!pChr->subscribe(true, notifyCB))
-                {
-                    // Disconnect if subscribe failed
-                    pClient->disconnect();
-                    return false;
-                }
-                Serial.println("Subscribed to LEVO notifications");
-            }
-        }
-    }
-    else
-    {
-        Serial.println("LEVO service not found.");
-    }
+    // Now we can read/write/subscribe the characteristics of the services we are interested in
+    subscribe( pClient );
+
     return true;
 }
 
@@ -376,6 +543,8 @@ void LevoEsp32Ble::startScan()
 void LevoEsp32Ble::Init( uint32_t pin, bool bBtEnabled )
 {
     Serial.println("Starting NimBLE Client");
+
+    m_bleStatus = bBtEnabled ? LevoEsp32Ble::OFFLINE : LevoEsp32Ble::SWITCHEDOFF;
 
     // message queue
     m_bleMsgQueue = xQueueCreate(10, sizeof(stBleMessage));
@@ -435,4 +604,3 @@ bool LevoEsp32Ble::Update( stBleVal& bleVal )
 
     return ret;
 }
-
