@@ -10,4 +10,4 @@
     0.92   07/02/2021  csv log formats added, battery capacity calculation changed
     0.93   13/02/2021  more BLE functionality/data fields added
     0.94   16/02/2021  read/write functionality and "tune" dialog
-
+    0.95   20/02/2021  small bug fixes, altimeter support (BMP280)

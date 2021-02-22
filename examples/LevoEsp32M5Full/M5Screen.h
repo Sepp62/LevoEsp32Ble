@@ -77,6 +77,7 @@ protected:
             BLE_BIKE_WHEELCIRC,
             BLE_BATT_CHARGECYCLES,
             BLE_BATT_HEALTH,
+            BARO_ALTIMETER, // replace with UNKNOWN to make unvisible
             UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN,
             UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN,
         },
@@ -94,6 +95,7 @@ protected:
             UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN,
             UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN,
             UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN,
+            UNKNOWN,
         },
         {   // Screen C
             UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN,
@@ -101,6 +103,7 @@ protected:
             UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN,
             UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN,
             UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN,
+            UNKNOWN,
         }
     };
 

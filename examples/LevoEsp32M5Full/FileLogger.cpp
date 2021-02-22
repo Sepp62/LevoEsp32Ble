@@ -12,6 +12,25 @@
 
 File dataFile;
 
+FileLogger::FileLogger()
+{
+    // exclude these values from full table log, since they usually don't change 
+    staticDataMask.set(DisplayData::BLE_BATT_SIZEWH );
+    staticDataMask.set(DisplayData::BLE_BATT_HEALTH );
+    staticDataMask.set(DisplayData::BLE_BATT_CHARGECYCLES );
+    staticDataMask.set(DisplayData::BLE_MOT_PEAKASSIST1 );
+    staticDataMask.set(DisplayData::BLE_MOT_PEAKASSIST2 );
+    staticDataMask.set(DisplayData::BLE_MOT_PEAKASSIST3 );
+    staticDataMask.set(DisplayData::BLE_MOT_SHUTTLE );
+    staticDataMask.set(DisplayData::BLE_BIKE_WHEELCIRC );
+    staticDataMask.set(DisplayData::BLE_BIKE_ASSISTLEV1 );
+    staticDataMask.set(DisplayData::BLE_BIKE_ASSISTLEV2 );
+    staticDataMask.set(DisplayData::BLE_BIKE_ASSISTLEV3 );
+    staticDataMask.set(DisplayData::BLE_BIKE_FAKECHANNEL );
+    staticDataMask.set(DisplayData::BLE_BIKE_ACCEL );
+}
+
+
 // check SD card occupied space in %
 int8_t FileLogger::PercentFull()
 {

@@ -302,6 +302,10 @@ M5ConfigFormTune::M5ConfigFormTune(LevoReadWrite& LevoBle) : levoBle( LevoBle )
     // reset poll time for assist data
     tiUpdateAssist = 0L;
 
+    uint32_t mic = micros();
+    uint32_t cnt = 0;
+    uint32_t mt = 0;
+
     // check buttons pressed
     while (!bDone)
     {
@@ -325,11 +329,16 @@ M5ConfigFormTune::M5ConfigFormTune(LevoReadWrite& LevoBle) : levoBle( LevoBle )
         }
         else
         {
-            // updateAssistChanged(); // needs too much time and makes GUI laggy
+            // updateAssistChanged(); // needs too much time and makes GUI laggy (mean loop time: 110us instead of 50us)
         }
 
         if( !levoBle.IsConnected() ) // exit w/o BT connection
             break;
+
+        mt += micros()-mic;
+        mic = micros();
+        if( (cnt++ % 1000) == 0 )
+            Serial.printf( "micros: %ld", mt/cnt);
     }
 
     // wait till there is no touch anymore

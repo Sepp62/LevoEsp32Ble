@@ -10,12 +10,16 @@
 #ifndef FILE_LOGGER_H
 #define FILE_LOGGER_H
 
+#undef min // min macro conflicts with bitset
+#include <bitset>
 #include <LevoEsp32Ble.h>
 #include "DisplayData.h"
 
 class FileLogger
 {
 public:
+    FileLogger();
+
     typedef enum
     {
         NONE = 0,
@@ -52,6 +56,10 @@ protected:
     float allValues[DisplayData::numElements];
 
     // omit some values in table log
+    std::bitset<DisplayData::numElements> staticDataMask;
+    bool isStaticData(DisplayData::enIds id) { return staticDataMask.test( id ); }
+
+    /* fast and small footprint, but limited to 32 values
     uint32_t staticDataMask =
         1 << DisplayData::BLE_BATT_SIZEWH |
         1 << DisplayData::BLE_BATT_HEALTH |
@@ -66,7 +74,7 @@ protected:
         1 << DisplayData::BLE_BIKE_ASSISTLEV3 |
         1 << DisplayData::BLE_BIKE_FAKECHANNEL |
         1 << DisplayData::BLE_BIKE_ACCEL;
-    bool isStaticData( DisplayData::enIds id ) { return staticDataMask &  (1<<id); }
+    bool isStaticData( DisplayData::enIds id ) { return staticDataMask &  (1<<id); }*/
 };
 
 #endif // FILE_LOGGER_H

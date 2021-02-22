@@ -170,6 +170,7 @@ void M5System::Init()
 
     Disbuff.createSprite(320, 240);
 
+    // Wire1 devices
     addI2cDevice("Axp192",0x34);
     addI2cDevice("CST Touch",0x38);
     // addI2cDevice("IMU6886",0x68);
@@ -185,7 +186,7 @@ void M5System::Init()
 
     DisCoverScrollbuff.createSprite(320, 60);
     checkI2cAddr();
-    coverScrollText("LEVO BLE Version 0.94", M5.Lcd.color565(SUCCESS_COLOR));
+    coverScrollText("LEVO BLE Version 0.95", M5.Lcd.color565(SUCCESS_COLOR));
     DisCoverScrollbuff.deleteSprite();
 
     delay(500);

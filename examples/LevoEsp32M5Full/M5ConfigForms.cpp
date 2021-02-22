@@ -14,6 +14,7 @@
 #include "M5Keyboard.h"
 #include "M5ConfigFormWifi.h"
 #include "FileLogger.h"
+#include "AltimeterBMP280.h"
 
 ButtonColors M5ConfigForms::on_clrs = { GREEN, WHITE, WHITE };
 ButtonColors M5ConfigForms::off_clrs = { BLACK, WHITE, WHITE };
@@ -446,6 +447,61 @@ void M5ConfigForms::OnCmdLogging(Preferences& prefs)
     }
 }
 
+// altimeter calibration
+void M5ConfigForms::OnCmdAltimeter(Preferences& prefs)
+{
+    // wait till there is no touch anymore
+    while (M5.Touch.ispressed())
+        M5.update();
+
+    if (!AltimeterBMP280::CanCalculateSealevel())
+    {
+        MsgBox( "No altimeter hardware found!" );
+        return;
+    }
+
+    String str = "";
+    M5Keyboard keyb;
+    bool ret = keyb.Show(str, "Enter current altitude (m):", M5Keyboard::KEY_MODE_NUMERIC);
+    Serial.println(str);
+    if (ret)
+    {
+        uint32_t altitude = atol(str.c_str());
+        if (altitude)
+        {
+            float sealevelhPa = AltimeterBMP280::GetCurrentSealevelhPa((float)altitude);
+            if(sealevelhPa != 0.0 )
+            {
+                prefs.putFloat("sealevelhPa", sealevelhPa);
+                Serial.printf("SealevelPressure (hPa): %f\r\n", sealevelhPa);
+            }
+        }
+    }
+}
+
+// command handler for 2nd more menu buttons
+void M5ConfigForms::OnCmdMore2(Preferences& prefs)
+{
+    int cmd = 0;
+
+    stItem items[3] =
+    {
+        { 1, BUTTON, false, "Set clock/Wifi", NULL, 0 },
+        { 2, BUTTON, false, "Clear settings", NULL, 0 },
+        { 0, BUTTON, false, "Back", NULL, 0 },
+    };
+
+    while ((cmd = PageCheckMenu(items, N_ELE(items))) != 0)
+    {
+        // Serial.println(cmd);
+        switch (cmd)
+        {
+        case 1: OnCmdClockWifi(prefs); break;
+        case 2: OnCmdClearAll(prefs);  break;
+        }
+    }
+}
+
 // command handler for more menu buttons
 void M5ConfigForms::OnCmdMore(Preferences& prefs)
 {
@@ -454,9 +510,9 @@ void M5ConfigForms::OnCmdMore(Preferences& prefs)
     stItem items[5] =
     {
         { 1, BUTTON, false, "Bluetooth Pin", NULL, 0 },
-        { 2, BUTTON, false, "Set clock/Wifi", NULL, 0 },
+        { 2, BUTTON, false, "Altimeter", NULL, 0 },
         { 3, BUTTON, false, "Screen", NULL, 0 },
-        { 4, BUTTON, false, "Clear settings", NULL, 0 },
+        { 4, BUTTON, false, "More...", NULL, 0 },
         { 0, BUTTON, false, "Back", NULL, 0 },
     };
 
@@ -466,9 +522,9 @@ void M5ConfigForms::OnCmdMore(Preferences& prefs)
         switch (cmd)
         {
         case 1: OnCmdBtPin(prefs);     break;
-        case 2: OnCmdClockWifi(prefs); break;
+        case 2: OnCmdAltimeter(prefs); break;
         case 3: OnCmdScreen(prefs);    break;
-        case 4: OnCmdClearAll(prefs);  break;
+        case 4: OnCmdMore2(prefs);     break;
         }
     }
 }

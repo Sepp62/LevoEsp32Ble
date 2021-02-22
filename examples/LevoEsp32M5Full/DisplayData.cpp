@@ -9,6 +9,9 @@
 
 const DisplayData::stDisplayData * DisplayData::GetDescription(enIds id)
 {
+    if( hiddenMask.test( id ) ) // skip hidden 
+        return NULL;
+
     if (id >= 0 && id < numElements)
         return &displayData[id];
 

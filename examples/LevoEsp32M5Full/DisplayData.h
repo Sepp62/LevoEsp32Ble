@@ -8,6 +8,8 @@
 #ifndef DISPLAYDATA_H
 #define DISPLAYDATA_H
 
+#undef min // min macro conflicts with bitset
+#include <bitset>
 #include "Arduino.h"
 
 class DisplayData
@@ -44,7 +46,9 @@ public:
         BLE_BIKE_ASSISTLEV3,
         BLE_BIKE_FAKECHANNEL,
         BLE_BIKE_ACCEL,
-        // ...in the future: ANT+ and CAN values
+        // ...in the future: Elevation, GPS, ANT+, CAN and other values
+        BARO_ALTIMETER,
+
         NUM_ELEMENTS // must be the last value
     } enIds;
 
@@ -59,6 +63,8 @@ public:
 
     const stDisplayData* GetDescription(enIds id);
     static const int numElements = NUM_ELEMENTS;
+
+    void Hide(enIds id) { hiddenMask.set(id); } // hide a value forever
 
 protected:
     const stDisplayData displayData[numElements] =
@@ -91,7 +97,11 @@ protected:
         { BLE_BIKE_ASSISTLEV3,    "Assist Turbo",   "%",    4, 0 },
         { BLE_BIKE_FAKECHANNEL,   "Fake chan",      "",     4, 0 },
         { BLE_BIKE_ACCEL,         "Accel.",         "%",    4, 0 },
+
+        { BARO_ALTIMETER,         "Elevation",      "m",    4, 0 },
     };
+
+    std::bitset<numElements> hiddenMask;
 };
 
 #endif // DISPLAYDATA_H

@@ -11,6 +11,7 @@
  *  https://github.com/ropg/ezTime
  *  https://github.com/espressif/arduino-esp32/tree/master/libraries/Preferences
  *  https://github.com/tuupola/bm8563
+ *  https://github.com/adafruit/Adafruit_BMP280_Library
  * 
  *  Images converted with: https://lvgl.io/tools/imageconverter (True color, C-Array)
  *
@@ -21,6 +22,7 @@
  *      0.92   07/02/2021  csv log formats added
  *      0.93   13/02/2021  more BLE functionality/data fields added
  *      0.94   16/02/2021  read/write functionality and "tune" dialog
+ *      0.95   20/02/2021  small bug fixes, altimeter support (BMP280)
  *
  */
 
@@ -32,23 +34,24 @@
 #include "M5Screen.h"
 #include "FileLogger.h"
 #include "M5ConfigFormTune.h"
+#include "AltimeterBMP280.h"
 
-// tick count for uncritical loop funtions
-static const unsigned long TICK_MS = 100L;
-
-Preferences   Prefs;
-LevoReadWrite LevoBle;
-DisplayData   DispData;
-M5System      Core2;
-M5Screen      Screen;
-SystemStatus  SysStatus;
-FileLogger    Logger;
+Preferences     Prefs;
+LevoReadWrite   LevoBle;
+DisplayData     DispData;
+M5System        Core2;
+M5Screen        Screen;
+SystemStatus    SysStatus;
+FileLogger      Logger;
+AltimeterBMP280 Altimeter;
 
 // local settings
 FileLogger::enLogFormat logFormat = FileLogger::SIMPLE; // CSV_TABLE; // CSV_KNOWN; // CSV_SIMPLE; // SIMPLE;
 bool     bBtEnabled = true;
 uint16_t backlightTimeout = 60;
 bool     bBacklightCharging = true;
+bool     bHasAltimeter = false;
+float    sealevelhPa = 1013.25;
 
 M5Screen::enScreens currentScreen = M5Screen::SCREEN_A;
 
@@ -80,11 +83,13 @@ void readPreferences()
     bBtEnabled         = Prefs.getUChar("BtEnabled", 1) ? true : false;
     backlightTimeout   = Prefs.getUShort("BacklightTo", 60);
     bBacklightCharging = Prefs.getUChar("BacklightChg", 1) ? true : false;
+    sealevelhPa        = Prefs.getFloat("sealevelhPa", 1013.25);
 
     Serial.printf("Log format: %d\r\n", logFormat);
     Serial.printf("Bluetooth enabled: %d\r\n", bBtEnabled);
     Serial.printf("Backlight timeout: %d\r\n", backlightTimeout);
     Serial.printf("Backlight while charging: %d\r\n", bBacklightCharging);
+    Serial.printf("SealevelPressure (hPa): %f\r\n", sealevelhPa);
 }
 
 // Read bluetooth pin from preferences
@@ -123,6 +128,7 @@ void onBtTune(Event& e)
         Screen.UpdateButtonBar(M5Screen::SCREEN_C);
         uninstallButtonHandlers();
         M5ConfigFormTune form(LevoBle);
+        Core2.ResetDisplayTimer();
         installButtonHandlers();
         Screen.Init(currentScreen, DispData);
     }
@@ -224,6 +230,16 @@ void ShowBleData( LevoEsp32Ble::stBleVal & bleVal )
     Logger.Writeln(id, bleVal, DispData, logFormat);
 }
 
+// print and log float values from non BLE sensors
+void ShowFloatData(DisplayData::enIds id, float fVal )
+{
+    Screen.ShowValue(id, fVal, DispData); // ouput to screen
+    // log data and dump to serial
+    LevoEsp32Ble::stBleVal bleVal;
+    bleVal.unionType = LevoEsp32Ble::FLOAT; bleVal.fVal = fVal;
+    Logger.Writeln(id, bleVal, DispData, logFormat);
+}
+
 void setup ()
 {
     // Serial.begin(115200); dont do, when M5 is used.
@@ -239,9 +255,14 @@ void setup ()
     readPreferences();
     Core2.SetBacklightSettings(backlightTimeout, bBacklightCharging);
 
+    // altimeter
+    bHasAltimeter = Altimeter.Init();
+    if( !bHasAltimeter )
+        DispData.Hide(DisplayData::BARO_ALTIMETER );
+
     // all screen output
     Screen.Init(M5Screen::SCREEN_A, DispData);
-    
+
     // bluetooth communication
     LevoBle.Init( ReadBluetoothPin(), bBtEnabled );
 
@@ -253,18 +274,20 @@ void setup ()
 //////////////////////////////////////
 void loop ()
 {
-    static unsigned long ti = millis() + TICK_MS;
+    static uint32_t ti100  = millis() + 100L;
+    static uint32_t ti1000 = millis() + 1000L;
 
     // bluetooth handling
     LevoEsp32Ble::stBleVal bleVal;
     if (LevoBle.Update(bleVal))
         ShowBleData(bleVal);
 
-    // do some things from time to time
-    if (millis() > ti)
+    // do all 100ms
+    uint32_t ti = millis();
+    if (ti > ti100)
     {
         // print system status to screen
-        ti = millis() + TICK_MS;
+        ti100 = millis() + 100L;
         SysStatus.UpdateBleStatus( LevoBle.GetBleStatus() );
         Core2.CheckPower(SysStatus);
         if (Screen.ShowSysStatus(SysStatus))
@@ -272,6 +295,16 @@ void loop ()
 
         // dim display after some time
         Core2.DoDisplayTimer();
+    }
+
+    // do all 1000ms
+    if (ti > ti1000)
+    {
+        ti1000 = millis() + 1000L;
+
+        // Altimeter
+        if (bHasAltimeter)
+            ShowFloatData(DisplayData::BARO_ALTIMETER, Altimeter.GetAltitude(sealevelhPa));
     }
     
     // touch update
