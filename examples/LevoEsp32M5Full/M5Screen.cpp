@@ -27,9 +27,21 @@ extern const uint8_t img_chargearrow_map[];
 extern const uint8_t img_settings_map[];
 extern const uint8_t img_sdgreen_map[];
 extern const uint8_t img_sdgray_map[];
+extern const uint8_t img_triprun_map[];
+extern const uint8_t img_tripstop_map[];
 
 M5FieldThird thirdField;
 M5FieldHalf  halfField;
+
+// val is in seconds
+void M5Screen::formatAsTime(float val, size_t nLen, char* strVal)
+{
+    int h, m, s;
+    h = val/3600.0;
+    m = (val - h*3600.0)/60.0;
+    s = val - h*3600.0 - m * 60.0;
+    snprintf( strVal, nLen, " %02.2d:%02.2d:%02.2d", h, m, s );
+}
 
 void M5Screen::ShowValue(enIds id, float val, DisplayData& dispData)
 {
@@ -37,52 +49,82 @@ void M5Screen::ShowValue(enIds id, float val, DisplayData& dispData)
 
     // buffer value in case of screen change
     if( id < NUM_ELEMENTS )
-      valueBuffer[id] = val;
+      m_valueBuffer[id] = val;
 
     const DisplayData::stDisplayData* pDesc = dispData.GetDescription(id);
     if (pDesc && pDesc->nWidth < sizeof( strVal ) )
     {
-        dtostrf(val, pDesc->nWidth, pDesc->nPrecision, strVal );
+        if( pDesc->flags & TIME )
+            formatAsTime( val, sizeof(strVal), strVal );
+        else
+            dtostrf(val, pDesc->nWidth, pDesc->nPrecision, strVal );
         
-        int idx = idToIdx[id];
+        int idx = m_idToIdx[id];
         if (idx < 0 || idx >= numElements)
             return;
         
         // render value
-        stRender& render = fldRender[idx];
+        stRender& render = m_fldRender[idx];
         render.pField->RenderValue(strVal, render.x, render.y, pDesc);
     }
 }
 
-void M5Screen::RenderEmptyValue(stRender& render, const stDisplayData* pDesc)
+void M5Screen::renderEmptyValue(stRender& render, const stDisplayData* pDesc)
 {
     char strVal[20];
-    dtostrf( 0.0f, pDesc->nWidth, pDesc->nPrecision, strVal);
+    if (pDesc->flags & TIME)
+        formatAsTime(0.0, sizeof(strVal), strVal);
+    else
+        dtostrf( 0.0f, pDesc->nWidth, pDesc->nPrecision, strVal);
     render.pField->RenderValue( strVal, render.x, render.y, pDesc, M5Field::OFFLINE );
 }
 
-DisplayData::enIds M5Screen::GetIdFromIdx(enScreens nScreen, int i)
+DisplayData::enIds M5Screen::getIdFromIdx(enScreens nScreen, int i)
 {
     if (i < numElements)
-        return order[nScreen][i];
-    else
-        return UNKNOWN;
+    {
+        if(m_order[nScreen][i] != UNKNOWN )
+            return (DisplayData::enIds)(m_order[nScreen][i] & 0x7FFF);
+    }
+    return UNKNOWN;
+}
+
+bool M5Screen::hasLineBreak(enScreens nScreen, int i)
+{
+    if (i < numElements)
+    {
+        if (m_order[nScreen][i] != UNKNOWN)
+            return (m_order[nScreen][i] & NEWLINE ) ? true : false;
+    }
+    return false;
 }
 
 void M5Screen::Init(enScreens nScreen, DisplayData& dispData)
 {
     M5.Lcd.clear();
 
+    // Hardware buttons
+    UpdateHardwareButtons(nScreen);
+
+    // Button bar 
+    enableButtonBar((nScreen == SCREEN_C) ? m_fnButtonBarEvent : NULL);
+
+    // BT icon
+    drawBluetoothIcon(m_lastBleStatus);
+
+    // settings icon
+    M5.Lcd.drawBitmap(M5.Lcd.width() - 26, 5, 20, 20, img_settings_map);  // 20x20 image
+
     // reset lookup table
-    memset(idToIdx, -1, sizeof(idToIdx));
+    memset(m_idToIdx, -1, sizeof(m_idToIdx));
 
     // build layout from id order 
     int i, x = 0, y = START_Y, bottom = 0;
     for (i = 0; i < DisplayData::numElements; i++)
     {
         // get data id
-        DisplayData::enIds id = GetIdFromIdx(nScreen, i);
-        if (id == DisplayData::UNKNOWN)
+        DisplayData::enIds id = getIdFromIdx(nScreen, i);
+        if (id == DisplayData::UNKNOWN) // value not to be displayed on current screen
             continue;
         
         // get data description
@@ -91,61 +133,57 @@ void M5Screen::Init(enScreens nScreen, DisplayData& dispData)
             continue;
 
         // lookup for faster rendering of values
-        idToIdx[id] = i;
+        m_idToIdx[id] = i;
 
-        // needed field type
+        // needed field width 
         if (pDesc->nWidth > 4)
-            fldRender[i].pField = &halfField;
+            m_fldRender[i].pField = &halfField;
         else
-            fldRender[i].pField = &thirdField;
+            m_fldRender[i].pField = &thirdField;
 
         // field position
-        fldRender[i].y = y;
-        fldRender[i].x = x;
+        m_fldRender[i].y = y;
+        m_fldRender[i].x = x;
 
         // wrap line
-        x += fldRender[i].pField->GetMetrics().rcBoundWidth;
-        if( x > M5.Lcd.width() )
+        x += m_fldRender[i].pField->GetMetrics().rcBoundWidth;
+        if (x > M5.Lcd.width() || hasLineBreak(nScreen, i))
         {
             y += bottom;
-            x = fldRender[i].pField->GetMetrics().rcBoundWidth;
+            x = m_fldRender[i].pField->GetMetrics().rcBoundWidth;
             bottom = 0;
-            fldRender[i].y = y;
-            fldRender[i].x = 0;
+            m_fldRender[i].y = y;
+            m_fldRender[i].x = 0;
         }
 
         // render frame and buffered or empty value
-        fldRender[i].pField->RenderFrame(fldRender[i].x, fldRender[i].y, pDesc);
-        if( valueBuffer[id] != FLOAT_UNDEFINED )
-            ShowValue( id, valueBuffer[id], dispData);
+        m_fldRender[i].pField->RenderFrame(m_fldRender[i].x, m_fldRender[i].y, pDesc);
+        if(m_valueBuffer[id] != FLOAT_UNDEFINED )
+            ShowValue( id, m_valueBuffer[id], dispData);
         else
-            RenderEmptyValue(fldRender[i], pDesc);
+            renderEmptyValue(m_fldRender[i], pDesc);
 
         // remember bottom of highest element 
-        bottom = max(bottom, (int)fldRender[i].pField->GetMetrics().rcBoundHeight);
+        bottom = max(bottom, (int)m_fldRender[i].pField->GetMetrics().rcBoundHeight);
     }
 
-    // Buttons
-    UpdateButtonBar(nScreen);
-
-    DrawBluetoothIcon(lastBleStatus);
+    m_showSysStatusCnt = 0;
 }
 
-void M5Screen::UpdateButtonBar(enScreens nScreen)
+void M5Screen::UpdateHardwareButtons(enScreens nScreen)
 {
     M5.Lcd.setFreeFont(FF1);
     M5.Lcd.setTextSize(1);
-    // M5.Lcd.setTextColor(TFT_GREEN, TFT_BLACK);
     M5.Lcd.setTextDatum(TC_DATUM);
     M5.Lcd.setTextColor((nScreen == SCREEN_A) ? TFT_WHITE : TFT_GREEN, TFT_BLACK);
-    M5.Lcd.drawString("Data A", 55, 226, 2);
+    M5.Lcd.drawString("Data A", 55, 224, 2);
     M5.Lcd.setTextColor((nScreen == SCREEN_B) ? TFT_WHITE : TFT_GREEN, TFT_BLACK);
-    M5.Lcd.drawString("Data B", 160, 226, 2);
+    M5.Lcd.drawString("Data B", 160, 224, 2);
     M5.Lcd.setTextColor((nScreen == SCREEN_C) ? TFT_WHITE : TFT_GREEN, TFT_BLACK);
-    M5.Lcd.drawString("Tune", 265, 226, 2);
+    M5.Lcd.drawString("Trip & Tune", 265, 224, 2);
 }
 
-void M5Screen::DrawBluetoothIcon(LevoEsp32Ble::enBleStatus bleStatus)
+void M5Screen::drawBluetoothIcon(LevoEsp32Ble::enBleStatus bleStatus)
 {
     switch (bleStatus)
     {
@@ -162,14 +200,19 @@ bool M5Screen::ShowSysStatus(SystemStatus& sysStatus)
     bool ret = false;
 
     // Show BLE status
-    if (sysStatus.IsNewBleStatus(lastBleStatus) )
+    if (sysStatus.IsNewBleStatus(m_lastBleStatus) )
     {
-        DrawBluetoothIcon(lastBleStatus);
+        if( m_lastBleStatus != LevoEsp32Ble::CONNECTED )
+        {
+            // mark value buffer as invalid
+            ResetValueBuffer();
+        }
+        drawBluetoothIcon(m_lastBleStatus);
         ret = true; // indicate changed ble status 
     }
 
     // show battery status every 10 ticks (1000 ms)
-    if ((showSysStatusCnt++ % 10) == 0)
+    if ((m_showSysStatusCnt++ % 10) == 0)
     {
         M5.Lcd.setTextFont(1);
 
@@ -211,6 +254,16 @@ bool M5Screen::ShowSysStatus(SystemStatus& sysStatus)
             M5.Lcd.drawBitmap(x, 6, 15, 18, imgMap);  // 15x18 image
         }
 
+        // trip running
+        if ( sysStatus.tripStatus != SystemStatus::NONE )
+        {
+            int x = xpos + 44 + 15 + 8;
+            if (sysStatus.tripStatus == SystemStatus::STARTED )
+                M5.Lcd.drawBitmap(x, 6, 15, 18, img_triprun_map);  // 15x18 image
+            else
+                M5.Lcd.drawBitmap(x, 6, 15, 18, img_tripstop_map);  // 15x18 image
+        }
+
         // warning message or current time
         if( !sysStatus.bHasBtPin )
         {
@@ -224,13 +277,10 @@ bool M5Screen::ShowSysStatus(SystemStatus& sysStatus)
             // clock display
             char timeStrbuff[20];
             M5.Lcd.setCursor(218 - 32, 8);
-            M5.Rtc.GetTime(&RTCtime_Now);
-            sprintf(timeStrbuff, "%02d:%02d:%02d", RTCtime_Now.Hours, RTCtime_Now.Minutes, RTCtime_Now.Seconds);
+            M5.Rtc.GetTime(&m_RTCtime_Now);
+            sprintf(timeStrbuff, "%02d:%02d:%02d", m_RTCtime_Now.Hours, m_RTCtime_Now.Minutes, m_RTCtime_Now.Seconds);
             M5.Lcd.println(timeStrbuff);
         }
-
-        // settings icon
-        M5.Lcd.drawBitmap(M5.Lcd.width() - 26, 5, 20, 20, img_settings_map );  // 20x20 image
     }
     return ret;
 }

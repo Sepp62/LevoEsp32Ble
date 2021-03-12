@@ -11,3 +11,6 @@
     0.93   13/02/2021  more BLE functionality/data fields added
     0.94   16/02/2021  read/write functionality and "tune" dialog
     0.95   20/02/2021  small bug fixes, altimeter support (BMP280)
+    0.96   12/03/2021  virtual sensors (inclination) and trip/avg/peak values added
+                       mot power, batt voltage and batt current corrected
+                       in LevoEsp32Ble

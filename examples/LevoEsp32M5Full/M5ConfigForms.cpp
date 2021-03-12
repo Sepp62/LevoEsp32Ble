@@ -409,17 +409,18 @@ void M5ConfigForms::OnCmdLogging(Preferences& prefs)
     int i;
     stItem items[5] =
     {
-        { FileLogger::SIMPLE,     RADIO,  false, "Text (complete)", NULL, 0 },
-        { FileLogger::CSV_SIMPLE, RADIO,  false, "CSV (complete)", NULL, 0 },
-        { FileLogger::CSV_KNOWN,  RADIO,  false, "CSV (known data only)", NULL, 0 },
-        { FileLogger::CSV_TABLE,  RADIO,  false, "CSV all values per line", NULL, 0 },
-        { 0,                      BUTTON, false, "Back", NULL, 0 },
+        // { FileLogger::SIMPLE,     RADIO,  false, "Text (complete)", NULL, 0 },
+        { FileLogger::CSV_SIMPLE,        RADIO,  false, "CSV (complete)", NULL, 0 },
+        { FileLogger::CSV_KNOWN,         RADIO,  false, "CSV (known data only)", NULL, 0 },
+        { FileLogger::CSV_KNOWNCHANGED,  RADIO,  false, "CSV (changed & known)", NULL, 0 },
+        { FileLogger::CSV_TABLE,         RADIO,  false, "CSV all values per line", NULL, 0 },
+        { 0,                             BUTTON, false, "Back", NULL, 0 },
     };
 
     // get stored format
     uint8_t logFormat = prefs.getUChar( "LogFormat" );
     if( logFormat >= FileLogger::NUM_FORMATS || logFormat == FileLogger::NONE )
-        logFormat = FileLogger::SIMPLE;
+        logFormat = FileLogger::CSV_SIMPLE;
 
     Serial.printf("Log format from preferences: %d\r\n", logFormat);
 

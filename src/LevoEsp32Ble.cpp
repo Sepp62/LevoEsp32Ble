@@ -5,6 +5,8 @@
  *
  *  Derived from NimBLE client sample: H2zero: https://github.com/h2zero/NimBLE-Arduino
  * 
+ *      0.96   12/03/2021  Mot power, batt voltage and batt current corrected
+  * 
  *  Contains all functionality to establish, maintain and control bluetooth connection to the Levo bike
  *  Implements notification receiver and data decoder.
  *  Basic functions for read and write. Use class "LevoReadWrite" for high level read/write access.
@@ -184,7 +186,7 @@ bool LevoEsp32Ble::DecodeMessage(uint8_t* pData, size_t length, stBleVal & bleVa
 
     switch (sender)
     {
-    case 0: // battery
+    case 0: // main battery
         switch (channel)
         {
         case 0:  bleVal.dataType = BATT_SIZEWH;         bleVal.fVal = round(int2float(pData, length, 2) * 1.1111f); break; // 00 00 c2 01 450Wh * 1.1111
@@ -192,8 +194,8 @@ bool LevoEsp32Ble::DecodeMessage(uint8_t* pData, size_t length, stBleVal & bleVa
         case 2:  bleVal.dataType = BATT_HEALTH;         bleVal.fVal = int2float(pData, length, 1); break;                  // 00 02 64
         case 3:  bleVal.dataType = BATT_TEMP;           bleVal.fVal = int2float(pData, length, 1); break;                  // 00 03 13
         case 4:  bleVal.dataType = BATT_CHARGECYCLES;   bleVal.fVal = int2float(pData, length, 2); break;                  // 00 04 0d 00
-        case 5:  bleVal.dataType = BATT_VOLTAGE;        bleVal.fVal = int2float(pData, length, 1)/10.0f + 28.0f; break;    // 00 05 50
-        case 6:  bleVal.dataType = BATT_CURRENT;        bleVal.fVal = int2float(pData, length, 1)/10.0f; break;            // 00 06 00
+        case 5:  bleVal.dataType = BATT_VOLTAGE;        bleVal.fVal = int2float(pData, length, 1)/5.0f + 20.0f; break;     // 00 05 50
+        case 6:  bleVal.dataType = BATT_CURRENT;        bleVal.fVal = int2float(pData, length, 1)/5.0f; break;             // 00 06 00
         case 12: bleVal.dataType = BATT_CHARGEPERCENT;  bleVal.fVal = int2float(pData, length, 1); break;                  // 00 0c 34
         }
         break;
@@ -206,7 +208,7 @@ bool LevoEsp32Ble::DecodeMessage(uint8_t* pData, size_t length, stBleVal & bleVa
         case 4:  bleVal.dataType = MOT_ODOMETER;    bleVal.fVal = int2float(pData, length, 4)/1000.0f; break;     // 01 04 9e d1 39 00
         case 5:  bleVal.dataType = MOT_ASSISTLEVEL; bleVal.fVal = int2float(pData, length, 2);         break;     // 01 05 02 00
         case 7:  bleVal.dataType = MOT_TEMP;        bleVal.fVal = int2float(pData, length, 1);         break;     // 01 07 19
-        case 12: bleVal.dataType = MOT_POWER;       bleVal.fVal = int2float(pData, length, 2)/10.0f;   break;     // 01 0c 02 00
+        case 12: bleVal.dataType = MOT_POWER;       bleVal.fVal = int2float(pData, length, 2);         break;     // 01 0c 02 00
         case 16: bleVal.dataType = MOT_PEAKASSIST;  bleVal.unionType = BINARY; bleVal.raw.len = 3; memcpy( bleVal.raw.data, &pData[2], 3 ); break;  // 01 10 <max1> <max2> <max3> 32
         case 21: bleVal.dataType = MOT_SHUTTLE;     bleVal.fVal = int2float(pData, length, 1);         break;     // 01 15 00 
         }
@@ -223,7 +225,7 @@ bool LevoEsp32Ble::DecodeMessage(uint8_t* pData, size_t length, stBleVal & bleVa
         }
         break;
     case 3: // ???
-    case 4: // ???
+    case 4: // secondary battery, same messages as main battery 
     default:
         break;
     }

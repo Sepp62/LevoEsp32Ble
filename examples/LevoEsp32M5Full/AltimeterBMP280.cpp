@@ -22,12 +22,18 @@ AltimeterBMP280::~AltimeterBMP280()
     delete m_pBmp;
 }
 
-bool  AltimeterBMP280::Init(uint8_t i2cAddress )
+bool  AltimeterBMP280::Init()
 {
+    uint8_t i2cAddress = 0x77;
+
     if (!m_pBmp->begin(i2cAddress))
     {
-        // Serial.println( "Could not find a valid BMP280 sensor, check wiring!" );
-        return false;
+        i2cAddress = 0x76;
+        if (!m_pBmp->begin(i2cAddress))
+        {
+            // Serial.println( "Could not find a valid BMP280 sensor, check wiring!" );
+            return false;
+        }
     }
 
     /* Default settings from datasheet. */
@@ -65,6 +71,13 @@ float AltimeterBMP280::readAltitude(float seaLevelhPa)
     m_lastPressure /= 100.0;                 // hPa
     altitude = 44330 * (1.0 - pow(m_lastPressure / seaLevelhPa, 0.1903));
     // Serial.printf( "Pressure: %f, altitude: %f\r\n", m_lastPressure, altitude );
+
+    // on error 
+    if( altitude < -100.0 )
+    {
+        Serial.printf( "BMP280 sensor error - reset\r\n");
+        m_pBmp->reset();
+    }
 
     return altitude;
 }

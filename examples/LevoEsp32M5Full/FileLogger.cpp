@@ -12,25 +12,6 @@
 
 File dataFile;
 
-FileLogger::FileLogger()
-{
-    // exclude these values from full table log, since they usually don't change 
-    staticDataMask.set(DisplayData::BLE_BATT_SIZEWH );
-    staticDataMask.set(DisplayData::BLE_BATT_HEALTH );
-    staticDataMask.set(DisplayData::BLE_BATT_CHARGECYCLES );
-    staticDataMask.set(DisplayData::BLE_MOT_PEAKASSIST1 );
-    staticDataMask.set(DisplayData::BLE_MOT_PEAKASSIST2 );
-    staticDataMask.set(DisplayData::BLE_MOT_PEAKASSIST3 );
-    staticDataMask.set(DisplayData::BLE_MOT_SHUTTLE );
-    staticDataMask.set(DisplayData::BLE_BIKE_WHEELCIRC );
-    staticDataMask.set(DisplayData::BLE_BIKE_ASSISTLEV1 );
-    staticDataMask.set(DisplayData::BLE_BIKE_ASSISTLEV2 );
-    staticDataMask.set(DisplayData::BLE_BIKE_ASSISTLEV3 );
-    staticDataMask.set(DisplayData::BLE_BIKE_FAKECHANNEL );
-    staticDataMask.set(DisplayData::BLE_BIKE_ACCEL );
-}
-
-
 // check SD card occupied space in %
 int8_t FileLogger::PercentFull()
 {
@@ -55,15 +36,15 @@ int8_t FileLogger::PercentFull()
 bool FileLogger::Open()
 {
     // reset timestamp and start distance
-    tiOpenFile = millis();
-    tiStart = 0;
-    kmStart = 0.0f;
-    kmLast = 0.0f;
-    bFirstLine = true;
+    m_tiOpenFile = millis();
+    m_tiStart    = 0;
+    m_kmStart    = 0.0f;
+    m_kmLast     = 0.0f;
+    m_bFirstLine = true;
 
     // reset line buffer
     for( int i = 0; i < DisplayData::numElements; i++ )
-     allValues[i] = 0.0f;
+        m_tableLineBuffer[i] = 0.0f;
 
     // check card
     sdcard_type_t Type = SD.cardType();
@@ -98,11 +79,17 @@ bool FileLogger::Open()
     char timeStrbuff[40];
     M5.Rtc.GetDate(&RTC_Date);
     M5.Rtc.GetTime(&RTCtime);
-    sprintf(timeStrbuff, "%02d.%02d.%04d, %02d:%02d:%02d", RTC_Date.Date, RTC_Date.Month, RTC_Date.Year, RTCtime.Hours, RTCtime.Minutes, RTCtime.Seconds);
+    snprintf(timeStrbuff, sizeof(timeStrbuff), "%02d.%02d.%04d, %02d:%02d:%02d", RTC_Date.Date, RTC_Date.Month, RTC_Date.Year, RTCtime.Hours, RTCtime.Minutes, RTCtime.Seconds);
     Writeln(timeStrbuff);
     Writeln("====================");
 
     return true;
+}
+
+void FileLogger::Flush()
+{
+    dataFile.flush();
+    Serial.println("log file flushed.");
 }
 
 void FileLogger::Close()
@@ -122,35 +109,47 @@ bool FileLogger::Writeln(const char* strLog)
     return false;
 }
 
-// log one line in the specified format
-bool FileLogger::Writeln(DisplayData::enIds id, LevoEsp32Ble::stBleVal& bleVal, DisplayData& DispData, enLogFormat format)
+bool FileLogger::Writeln(std::string& strLog)
 {
-    // set start values for time
-    if( bFirstLine )
-        tiStart = millis();
+    if (dataFile)
+    {
+        strLog += "\r\n";
+        dataFile.write( (const uint8_t*)strLog.c_str(), strLog.length());
+        return true;
+    }
+    return false;
+}
 
-    // set start values for distance
-    if( kmStart == 0.0f && id == DisplayData::BLE_MOT_ODOMETER && bleVal.unionType == LevoEsp32Ble::FLOAT )
-        kmStart = bleVal.fVal;
+// log one line in the specified format
+bool FileLogger::Writeln(DisplayData::enIds id, LevoEsp32Ble::stBleVal& bleVal, DisplayData& DispData, enLogFormat format, uint32_t timestamp )
+{
+    // set start value for time
+    if( m_bFirstLine )
+        m_tiStart = timestamp;
 
-    // remember last distance value
+    // distance values
     if (id == DisplayData::BLE_MOT_ODOMETER && bleVal.unionType == LevoEsp32Ble::FLOAT)
     {
-        kmLast = bleVal.fVal;
+        // set start values for distance
+        if( m_kmStart == 0.0f )
+            m_kmStart = bleVal.fVal;
+        // remember last distance value
+        m_kmLast = bleVal.fVal;
     }
 
     // various log formats
     switch (format)
     {
     case SIMPLE:
-        return LogSimple(id, bleVal, DispData);
+        return LogSimple(id, bleVal, DispData, timestamp);
 
     case CSV_SIMPLE:
     case CSV_KNOWN:
-        return LogCsvSimple( id, bleVal, DispData, format);
+    case CSV_KNOWNCHANGED:
+        return LogCsvSimple( id, bleVal, DispData, format, timestamp);
 
     case CSV_TABLE:
-        return LogCsvTable(id, bleVal, DispData);
+        return LogCsvTable(id, bleVal, DispData, timestamp);
     }
     return false;
 }
@@ -192,17 +191,17 @@ void FileLogger::LogDump(DisplayData::enIds id, float val, DisplayData& DispData
 }
 
 // log value in text or hex representation w/o timestamp
-bool FileLogger::LogSimple(DisplayData::enIds id, LevoEsp32Ble::stBleVal& bleVal, DisplayData& DispData)
+bool FileLogger::LogSimple(DisplayData::enIds id, LevoEsp32Ble::stBleVal& bleVal, DisplayData& DispData, uint32_t timestamp)
 {
     std::string strLog;
 
     // log header
-    if(bFirstLine)
+    if(m_bFirstLine)
     {
         strLog = "Label         Value";
-        Writeln(strLog.c_str());
+        Writeln(strLog);
         Serial.println(strLog.c_str());
-        bFirstLine = false;
+        m_bFirstLine = false;
     }
 
     // log known data 
@@ -217,41 +216,68 @@ bool FileLogger::LogSimple(DisplayData::enIds id, LevoEsp32Ble::stBleVal& bleVal
         HexDump((char*)bleVal.raw.data, bleVal.raw.len, strLog);
     }
     Serial.println(strLog.c_str());
-    return Writeln(strLog.c_str());
+    return Writeln(strLog);
+}
+
+// check, if a float value has changed within a given range
+bool FileLogger::hasChanged(float fVal1, float fVal2, int precision)
+{
+    if( precision == 0 )
+        return (int)fVal1 != (int)fVal2;
+    else if (precision == 1)
+        return fabs( fVal1 - fVal2 ) > 0.01;
+    else if (precision == 2)
+        return fabs(fVal1 - fVal2) > 0.1;
+
+    return fVal1 != fVal2;
 }
 
 // log tab separated with timestamp and distance 
-bool FileLogger::LogCsvSimple(DisplayData::enIds id, LevoEsp32Ble::stBleVal& bleVal, DisplayData& DispData, enLogFormat format)
+bool FileLogger::LogCsvSimple(DisplayData::enIds id, LevoEsp32Ble::stBleVal& bleVal, DisplayData& DispData, enLogFormat format, uint32_t timestamp)
 {
     // log buffer
     char strLog[200] = "";
 
     // also log unknown?
-    bool bLogUnknown = (format == CSV_KNOWN) ? false : true;
+    bool bLogUnknown = (format == CSV_KNOWN || format == CSV_KNOWNCHANGED ) ? false : true;
 
     // write header to csv
-    if (bFirstLine)
+    if (m_bFirstLine)
     {
         strncpy( strLog, "Time\tDist\tId\tLabel\tValue\tUnit", sizeof( strLog) );
         Writeln( strLog );
         Serial.println(strLog);
-        bFirstLine = false;
+        m_bFirstLine = false;
     }
 
     // timestamp string
     char strTime[20];
-    uint32_t ti = (millis() - tiStart) / 100; // in 1/10 seconds
+    uint32_t ti = (timestamp - m_tiStart) / 100; // in 1/10 seconds
     snprintf(strTime, sizeof(strTime), "%ld.%ld", ti / 10, ti % 10);
 
     // distance string
     char strDistance[20];
-    dtostrf(kmLast - kmStart, 7, 2, strDistance);
+    dtostrf(m_kmLast - m_kmStart, 7, 2, strDistance);
 
     // log known value
     if (id != DisplayData::UNKNOWN && bleVal.unionType == LevoEsp32Ble::FLOAT)
     {
         const DisplayData::stDisplayData* pDesc = DispData.GetDescription(id);
         if (pDesc == 0)
+            return false;
+
+        // log only changed values
+        if( format == CSV_KNOWNCHANGED )
+        {
+            if( !hasChanged(bleVal.fVal, m_tableLineBuffer[id], pDesc->nPrecision ) )
+                return false;
+        }
+
+        // remember value for change detection
+        m_tableLineBuffer[id] = bleVal.fVal;
+
+        // do not log time values
+        if( pDesc->flags & DisplayData::TIME )
             return false;
 
         // format float value with correct precision
@@ -287,34 +313,36 @@ bool FileLogger::LogCsvSimple(DisplayData::enIds id, LevoEsp32Ble::stBleVal& ble
     return false;
 }
 
-bool FileLogger::LogCsvTable(DisplayData::enIds id, LevoEsp32Ble::stBleVal& bleVal, DisplayData& DispData)
+bool FileLogger::LogCsvTable(DisplayData::enIds id, LevoEsp32Ble::stBleVal& bleVal, DisplayData& DispData, uint32_t timestamp)
 {
     int i = 0;
     std::string strLog;
 
     // we can only handle float values
-    if (id == DisplayData::UNKNOWN && bleVal.unionType != LevoEsp32Ble::FLOAT)
+    if (id == DisplayData::UNKNOWN || bleVal.unionType != LevoEsp32Ble::FLOAT)
         return false;
 
-    // remember value
-    allValues[id] = bleVal.fVal;
+    // remember value for table display
+    m_tableLineBuffer[id] = bleVal.fVal;
 
     // write header to csv
-    if (bFirstLine)
+    if (m_bFirstLine)
     {
-        // collect data for 5 seconds
-        uint32_t tiWait  = (millis() - tiOpenFile) / 1000L;
+        // collect data for 5 seconds while not logging
+        uint32_t tiWait  = (millis() - m_tiOpenFile) / 1000L; // use millis() instead of timestamp here, because it may be tool old
         if( tiWait < 5 )
             return true;
 
-        // show static settings (hopefully collected within the first 10 seconds)
+        // show static settings (hopefully collected within the first 5 seconds)
         for (i = 0; i < DisplayData::numElements; i++)
         {
-            if (isStaticData((DisplayData::enIds)i))
+            DisplayData::enIds idStatic = (DisplayData::enIds)i;
+            const DisplayData::stDisplayData* pDesc = DispData.GetDescription(idStatic);
+            if (pDesc && isStaticValue(pDesc))
             {
-                float value = allValues[(DisplayData::enIds)i];
-                LogDump((DisplayData::enIds)i, value, DispData, strLog);
-                Writeln(strLog.c_str());
+                float value = m_tableLineBuffer[idStatic];
+                LogDump(idStatic, value, DispData, strLog);
+                Writeln(strLog);
                 Serial.println(strLog.c_str());
             }
         }
@@ -323,27 +351,26 @@ bool FileLogger::LogCsvTable(DisplayData::enIds id, LevoEsp32Ble::stBleVal& bleV
         strLog = "Time\tDist\tId";
         for ( i = 0; i < DisplayData::numElements; i++)
         {
-            if (isStaticData((DisplayData::enIds)i))
-                continue;
-
-            strLog += "\t";
             const DisplayData::stDisplayData* pDesc = DispData.GetDescription((DisplayData::enIds)i);
-            if( pDesc )
+            if (pDesc && isDynamicValue(pDesc))
+            {
+                strLog += "\t";
                 strLog += pDesc->strLabel;
+            }
         }
-        Writeln(strLog.c_str());
+        Writeln(strLog);
         Serial.println(strLog.c_str());
-        bFirstLine = false;
+        m_bFirstLine = false;
     }
 
     // timestamp string
     char strTime[20];
-    uint32_t ti = (millis() - tiStart) / 100; // in 1/10 seconds
+    uint32_t ti = (timestamp - m_tiStart) / 100; // in 1/10 seconds
     snprintf(strTime, sizeof(strTime), "%ld.%ld", ti / 10, ti % 10);
 
     // distance string
     char strDistance[20];
-    dtostrf(kmLast - kmStart, 7, 2, strDistance);
+    dtostrf(m_kmLast - m_kmStart, 7, 2, strDistance);
 
     // id string
     char strId[5];
@@ -359,22 +386,18 @@ bool FileLogger::LogCsvTable(DisplayData::enIds id, LevoEsp32Ble::stBleVal& bleV
     // append all values
     for ( i = 0; i < DisplayData::numElements; i++)
     {
-        if(isStaticData((DisplayData::enIds)i ) )
-            continue;
-
-        strLog += "\t";
-
         const DisplayData::stDisplayData* pDesc = DispData.GetDescription((DisplayData::enIds)i);
-        if( pDesc )
+        if (pDesc && isDynamicValue(pDesc))
         {
+            strLog += "\t";
             // format float value with correct precision
             char strVal[20];
-            dtostrf(allValues[i], 7, pDesc->nPrecision, strVal);
+            dtostrf(m_tableLineBuffer[i], 7, pDesc->nPrecision, strVal);
             strLog += strVal;
         }
     }
 
     Serial.println(strLog.c_str());
-    return Writeln(strLog.c_str());
+    return Writeln(strLog);
 }
 

@@ -51,7 +51,7 @@ public:
         MOT_ODOMETER       = 0x0100 | 0x0004,
         MOT_ASSISTLEVEL    = 0x0100 | 0x0005,
         MOT_TEMP           = 0x0100 | 0x0007,
-        MOT_POWER          = 0x0100 | 0x000c,
+        MOT_POWER          = 0x0100 | 0x000c,  // unclear, most probably: electric input power (verified by averaging log data over 90 min and comparison with consumed battery energy)
         MOT_PEAKASSIST     = 0x0100 | 0x0010,  // for assist level 1, 2, 3
         MOT_SHUTTLE        = 0x0100 | 0x0015,
 

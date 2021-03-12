@@ -23,7 +23,7 @@ public:
     AltimeterBMP280( TwoWire* tw  = &Wire );
     ~AltimeterBMP280();
 
-    bool  Init( uint8_t i2cAddress = 0x77 ); // returns true, if sensor exists
+    bool  Init(); // returns true, if sensor exists
     float GetAltitude( float sealevelhPa = 1013.25 );
 
     static bool  CanCalculateSealevel() { return m_lastPressure != 0.0; }

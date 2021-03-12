@@ -186,7 +186,7 @@ void M5System::Init()
 
     DisCoverScrollbuff.createSprite(320, 60);
     checkI2cAddr();
-    coverScrollText("LEVO BLE Version 0.95", M5.Lcd.color565(SUCCESS_COLOR));
+    coverScrollText("LEVO BLE Version 0.96", M5.Lcd.color565(SUCCESS_COLOR));
     DisCoverScrollbuff.deleteSprite();
 
     delay(500);
