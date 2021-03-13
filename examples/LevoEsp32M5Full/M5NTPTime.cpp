@@ -1,7 +1,7 @@
 /*
  *
  *  Created: 01/02/2021
- *      Author: Bernd Woköck
+ *      Author: Bernd Wokoeck
  *
  *  Setting RTC by NTP
  *

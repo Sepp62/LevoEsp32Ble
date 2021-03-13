@@ -1,7 +1,7 @@
 /*
  *
  *  Created: 01/02/2021
- *      Author: Bernd Woköck
+ *      Author: Bernd Wokoeck
  *
  * management of system M5 status
  *
@@ -39,7 +39,7 @@ public:
     bool         bHasBtPin          = false; // indicate if bluetooth pin is configured
     bool         bLogging           = false;
     bool         bHasSDCard         = false;
-    enTripStatus tripStatus       = NONE;
+    enTripStatus tripStatus         = NONE;
 
     void UpdateBleStatus( LevoEsp32Ble::enBleStatus bleStatus );
     bool IsNewBleStatus(LevoEsp32Ble::enBleStatus& bleStatus);

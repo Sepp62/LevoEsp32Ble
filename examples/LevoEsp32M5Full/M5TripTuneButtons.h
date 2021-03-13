@@ -17,7 +17,7 @@ public:
     {
         BTSTART = 0,
         BTSTOP,
-        BTRESET,
+        BTFINISH,
         BTTUNE,
     } enButtons;
 

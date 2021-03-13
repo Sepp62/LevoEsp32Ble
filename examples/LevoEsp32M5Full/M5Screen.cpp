@@ -1,7 +1,7 @@
 /*
  *
  *  Created: 01/02/2021
- *      Author: Bernd Woköck
+ *      Author: Bernd Wokoeck
  *
  * main entry point for display of all data values on M5
  * 
@@ -16,7 +16,7 @@
 #include "M5Field.h"
 #include "M5ConfigForms.h"
 
-// bluetooth icons
+// icons
 extern const uint8_t btblue_map[];
 extern const uint8_t btyellow_map[];
 extern const uint8_t btgray_map[];
@@ -43,36 +43,41 @@ void M5Screen::formatAsTime(float val, size_t nLen, char* strVal)
     snprintf( strVal, nLen, " %02.2d:%02.2d:%02.2d", h, m, s );
 }
 
-void M5Screen::ShowValue(enIds id, float val, DisplayData& dispData)
+void M5Screen::ShowValue( DisplayData::enIds id, float val, DisplayData& dispData )
 {
     char strVal[20];
 
     // buffer value in case of screen change
-    if( id < NUM_ELEMENTS )
+    if( id < DisplayData::NUM_ELEMENTS )
       m_valueBuffer[id] = val;
 
     const DisplayData::stDisplayData* pDesc = dispData.GetDescription(id);
     if (pDesc && pDesc->nWidth < sizeof( strVal ) )
     {
-        if( pDesc->flags & TIME )
+        if( pDesc->flags & DisplayData::TIME )
             formatAsTime( val, sizeof(strVal), strVal );
         else
             dtostrf(val, pDesc->nWidth, pDesc->nPrecision, strVal );
         
         int idx = m_idToIdx[id];
-        if (idx < 0 || idx >= numElements)
+        if (idx < 0 || idx >= DisplayData::NUM_ELEMENTS)
             return;
+
+        // style/text color
+        M5Field::enStyle style = M5Field::NORMAL;
+        if( pDesc->flags & DisplayData::TRIP && m_sysStatus.tripStatus != SystemStatus::STARTED )
+            style = M5Field::OFFLINE;
         
         // render value
         stRender& render = m_fldRender[idx];
-        render.pField->RenderValue(strVal, render.x, render.y, pDesc);
+        render.pField->RenderValue(strVal, render.x, render.y, pDesc, style);
     }
 }
 
-void M5Screen::renderEmptyValue(stRender& render, const stDisplayData* pDesc)
+void M5Screen::renderEmptyValue(stRender& render, const DisplayData::stDisplayData* pDesc)
 {
     char strVal[20];
-    if (pDesc->flags & TIME)
+    if (pDesc->flags & DisplayData::TIME)
         formatAsTime(0.0, sizeof(strVal), strVal);
     else
         dtostrf( 0.0f, pDesc->nWidth, pDesc->nPrecision, strVal);
@@ -81,17 +86,17 @@ void M5Screen::renderEmptyValue(stRender& render, const stDisplayData* pDesc)
 
 DisplayData::enIds M5Screen::getIdFromIdx(enScreens nScreen, int i)
 {
-    if (i < numElements)
+    if (i < DisplayData::numElements)
     {
         if(m_order[nScreen][i] != UNKNOWN )
             return (DisplayData::enIds)(m_order[nScreen][i] & 0x7FFF);
     }
-    return UNKNOWN;
+    return DisplayData::UNKNOWN;
 }
 
 bool M5Screen::hasLineBreak(enScreens nScreen, int i)
 {
-    if (i < numElements)
+    if (i < DisplayData::NUM_ELEMENTS)
     {
         if (m_order[nScreen][i] != UNKNOWN)
             return (m_order[nScreen][i] & NEWLINE ) ? true : false;
@@ -136,7 +141,7 @@ void M5Screen::Init(enScreens nScreen, DisplayData& dispData)
         m_idToIdx[id] = i;
 
         // needed field width 
-        if (pDesc->nWidth > 4)
+        if (pDesc->nWidth + strlen( pDesc->strUnit ) > 7)
             m_fldRender[i].pField = &halfField;
         else
             m_fldRender[i].pField = &thirdField;
@@ -159,7 +164,7 @@ void M5Screen::Init(enScreens nScreen, DisplayData& dispData)
         // render frame and buffered or empty value
         m_fldRender[i].pField->RenderFrame(m_fldRender[i].x, m_fldRender[i].y, pDesc);
         if(m_valueBuffer[id] != FLOAT_UNDEFINED )
-            ShowValue( id, m_valueBuffer[id], dispData);
+            ShowValue( id, m_valueBuffer[id], dispData );
         else
             renderEmptyValue(m_fldRender[i], pDesc);
 
@@ -195,12 +200,31 @@ void M5Screen::drawBluetoothIcon(LevoEsp32Ble::enBleStatus bleStatus)
     }
 }
 
-bool M5Screen::ShowSysStatus(SystemStatus& sysStatus)
+void M5Screen::updateTripButtonStatus()
+{
+    if (m_sysStatus.tripStatus == SystemStatus::STARTED)
+    {
+        SetButtonBarButtonState(BTSTART, true);
+        SetButtonBarButtonState(BTSTOP, false);
+    }
+    else if (m_sysStatus.tripStatus == SystemStatus::STOPPED)
+    {
+        SetButtonBarButtonState(BTSTART, false);
+        SetButtonBarButtonState(BTSTOP, true);
+    }
+    else if (m_sysStatus.tripStatus == SystemStatus::NONE)
+    {
+        SetButtonBarButtonState(BTSTART, false);
+        SetButtonBarButtonState(BTSTOP, false);
+    }
+}
+
+bool M5Screen::ShowSysStatus()
 {
     bool ret = false;
 
     // Show BLE status
-    if (sysStatus.IsNewBleStatus(m_lastBleStatus) )
+    if (m_sysStatus.IsNewBleStatus(m_lastBleStatus) )
     {
         if( m_lastBleStatus != LevoEsp32Ble::CONNECTED )
         {
@@ -211,6 +235,9 @@ bool M5Screen::ShowSysStatus(SystemStatus& sysStatus)
         ret = true; // indicate changed ble status 
     }
 
+    // trip button status
+    updateTripButtonStatus();
+
     // show battery status every 10 ticks (1000 ms)
     if ((m_showSysStatusCnt++ % 10) == 0)
     {
@@ -218,18 +245,18 @@ bool M5Screen::ShowSysStatus(SystemStatus& sysStatus)
 
         // battery image with fill bar
         M5.Lcd.drawBitmap(32, 7, 30, 16, img_battgreen_map);  // 30x16 image
-        int rectwidth = (int)(25.0 * sysStatus.batteryPercent/100.0);
+        int rectwidth = (int)(25.0 * m_sysStatus.batteryPercent/100.0);
         uint16_t battFillCol = M5.Lcd.color565(BATTFILL_COLORGREEN);
-        if(sysStatus.batteryPercent < 20.0 )
+        if(m_sysStatus.batteryPercent < 20.0 )
             battFillCol = M5.Lcd.color565(BATTFILL_COLORRED);
-        else if (sysStatus.batteryPercent < 50.0)
+        else if (m_sysStatus.batteryPercent < 50.0)
             battFillCol = M5.Lcd.color565(BATTFILL_COLORYELL);
         M5.Lcd.fillRect(34, 9, rectwidth, 12, battFillCol );
 
         // charge symbol
         int xpos = 68;
         M5.Lcd.fillRect(68, 7, 18, 16, BLACK);
-        if (sysStatus.powerStatus != SystemStatus::POWER_INTERNAL)
+        if (m_sysStatus.powerStatus != SystemStatus::POWER_INTERNAL)
         {
             M5.Lcd.drawBitmap(68, 7, 8, 16, img_chargearrow_map);  // 8x16 image
             xpos += 18;
@@ -240,13 +267,13 @@ bool M5Screen::ShowSysStatus(SystemStatus& sysStatus)
         M5.Lcd.setTextSize(2);
         M5.Lcd.fillRect(xpos, 6, M5.Lcd.width() - xpos -26, 20, BLACK);
         M5.Lcd.setCursor(xpos, 8);
-        M5.Lcd.printf("%d%%", sysStatus.batteryPercent);
+        M5.Lcd.printf("%d%%", m_sysStatus.batteryPercent);
 
         // sd card symbol
         const uint8_t * imgMap = 0;
-        if ( sysStatus.bHasSDCard )
+        if (m_sysStatus.bHasSDCard )
             imgMap = img_sdgray_map;
-        if ( sysStatus.bLogging )
+        if (m_sysStatus.bLogging )
             imgMap = img_sdgreen_map;
         if( imgMap )
         {   
@@ -255,17 +282,17 @@ bool M5Screen::ShowSysStatus(SystemStatus& sysStatus)
         }
 
         // trip running
-        if ( sysStatus.tripStatus != SystemStatus::NONE )
+        if (m_sysStatus.tripStatus != SystemStatus::NONE )
         {
             int x = xpos + 44 + 15 + 8;
-            if (sysStatus.tripStatus == SystemStatus::STARTED )
+            if (m_sysStatus.tripStatus == SystemStatus::STARTED )
                 M5.Lcd.drawBitmap(x, 6, 15, 18, img_triprun_map);  // 15x18 image
             else
                 M5.Lcd.drawBitmap(x, 6, 15, 18, img_tripstop_map);  // 15x18 image
         }
 
         // warning message or current time
-        if( !sysStatus.bHasBtPin )
+        if( !m_sysStatus.bHasBtPin )
         {
             // "Missing BT pin" hint
             M5.Lcd.setTextColor(TFT_RED);

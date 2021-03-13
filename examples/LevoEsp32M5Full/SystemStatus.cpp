@@ -1,7 +1,7 @@
 /*
  *
  *  Created: 01/02/2021
- *      Author: Bernd Woköck
+ *      Author: Bernd Wokoeck
  *
  * management of system M5 status
  *

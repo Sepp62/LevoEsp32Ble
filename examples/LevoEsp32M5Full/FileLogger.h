@@ -1,7 +1,7 @@
 /*
  *
  *  Created: 01/02/2021
- *      Author: Bernd Woköck
+ *      Author: Bernd Wokoeck
  *
  * logging data values to a file
  *

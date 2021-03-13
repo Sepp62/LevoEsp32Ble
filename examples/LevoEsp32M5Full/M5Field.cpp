@@ -1,7 +1,7 @@
 /*
  *
  *  Created: 01/02/2021
- *      Author: Bernd Woköck
+ *      Author: Bernd Wokoeck
  *
  *  Rendering a data value field on M5 screen
  *  https://docs.m5stack.com/#/en/arduino/arduino_home_page?id=m5core2_api

@@ -14,3 +14,6 @@
     0.96   12/03/2021  virtual sensors (inclination) and trip/avg/peak values added
                        mot power, batt voltage and batt current corrected
                        in LevoEsp32Ble
+    0.97   12/03/2021  bug fixes (inclination, trip power etc. ), refactoring
+                       simulator added (see #define): copy CSV full table log
+                       on SD, delete all non table data and rename it to "simulator.txt"

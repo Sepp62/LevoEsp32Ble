@@ -33,10 +33,12 @@ VirtualSensors::VirtualSensors()
     m_sensorValues[DisplayData::TRIP_MAXSPEED]        = new stPeakValue;
 }
 
-void VirtualSensors::StartTrip()
+void VirtualSensors::StartTrip(DisplayData& DispData)
 {
     m_tripStatus = STARTED;
     m_startTime = millis();
+
+    refreshTripDisplay(DispData);
 
     // needs special treatment since this value changes only from time to time and trip will not be started yet at power on 
     setValue( DisplayData::TRIP_PEAKBATTTEMP, m_lastBattTemp, m_startTime );
@@ -68,6 +70,21 @@ void VirtualSensors::ResetTrip()
         stVirtSensorValue* pValue = m_sensorValues[id];
         if (pValue)
             pValue->reset();
+    }
+}
+
+void VirtualSensors::refreshTripDisplay(DisplayData& DispData)
+{
+    for (int i = 0; i < DisplayData::numElements; i++)
+    {
+        DisplayData::enIds id = (DisplayData::enIds)i;
+        const DisplayData::stDisplayData* pDesc = DispData.GetDescription(id);
+        if (pDesc == NULL || (pDesc->flags & DisplayData::TRIP) == 0)
+            continue;
+
+        stVirtSensorValue* pValue = m_sensorValues[id];
+        if (pValue )
+            pValue->bChanged = true;
     }
 }
 
@@ -330,8 +347,8 @@ void VirtualSensors::stAbsDifferenceValue::setValue( float fVal, uint32_t timest
 // rider and motor energy
 void VirtualSensors::stIntegrationValue::setValue(float fVal, uint32_t timestamp)
 {
-    if(currentTripValue == 0.0 )
-        lastTime = timestamp; // we will loose the first value after start
+    if(lastTime == 0 )
+        lastTime = timestamp;
     float integrationTime = (timestamp - lastTime)/1000.0; // sec
     currentTripValue += fVal * integrationTime;
     lastTime = timestamp;
@@ -341,8 +358,8 @@ void VirtualSensors::stIntegrationValue::setValue(float fVal, uint32_t timestamp
 // speed
 void VirtualSensors::stAverageValue::setValue(float fVal, uint32_t timestamp)
 {
-    if( lastTime = 0 )
-        lastTime = timestamp; // we will loose the first value after start
+    if( lastTime == 0 )
+        lastTime = timestamp;
     float integrationTime = (timestamp - lastTime)/1000.0; // sec
     sumTime += integrationTime;
     currentTripValue += fVal * integrationTime;
@@ -402,30 +419,63 @@ void VirtualSensors::calcConsumption(float fSpeed, uint32_t timestamp)
     }
 }
 
-void VirtualSensors::calcInclination(float fOdoVal, uint32_t timestamp)
+bool VirtualSensors::InclinationQueue::PopTail(float& odo, float& alti)
 {
-    m_lastOdoValue = fOdoVal;
-    stInclination newInc(fOdoVal, m_lastAltitude);
-    m_queue.emplace_front(newInc); // add new
-    if (m_queue.size() >= 10) // at least 100.0m
-    {
-        stInclination first(m_queue.front());
-        stInclination last(m_queue.back());
-        while (m_queue.size() >= 10)
-            m_queue.pop_back();  // remove last entries until 9 values remain
+    if( IsEmpty() )
+        return false;
+    m_cnt--;
+    odo  = m_values[m_tail].odo;
+    alti = m_values[m_tail].alti;
+    m_tail++;
+    if (m_tail >= SIZE)
+        m_tail = 0;
+    return true;
+}
 
-        // exact calculation (prone to exceptions)
-        // float roadDistance = (last.odoValue - first.odoValue) * 1000;        // distance converted to meter
-        // float deltaY = last.altitude - first.altitude;                       // elevation difference
-        // float deltaX = sqrt(roadDistance * roadDistance - deltaY * deltaY ); // horizontal projection of roadDistance (pythagoras)
-        // approx calculation (error ~1.3% at 30%)
-        float deltaY = last.altitude - first.altitude;                 // elevation difference
-        float deltaX = (last.odoValue - first.odoValue) * 1000;        // distance converted to meter
-        if (deltaX > 0.0)
+bool VirtualSensors::InclinationQueue::PushHead(float odo, float alti)
+{
+    if (IsFull())
+        return false;
+    m_cnt++;
+    m_values[m_head].odo = odo;
+    m_values[m_head].alti = alti;
+    m_head++;
+    if( m_head >= SIZE )
+        m_head = 0;
+    return true;
+}
+
+void VirtualSensors::calcInclination(float fOdo, float fAlti, uint32_t timestamp)
+{
+    if (!m_queue.IsFull())
+    {
+        m_queue.PushHead(fOdo, fAlti); // add new
+    }
+    else
+    {
+        // at least 10 odo values which is 100m at normal speed
+        float oldestOdo;
+        float oldestAlti;
+        if( m_queue.PopTail(oldestOdo, oldestAlti) )
         {
-            float inclination = round( deltaY / deltaX * 100 );
-            setValue(DisplayData::VIRT_INCLINATION, inclination, timestamp );
-            // Serial.printf("calc inclination: %f %%\r\n", inclination);
+            m_queue.PushHead(fOdo, fAlti); // add new after removing oldest
+
+            // exact calculation (prone to exceptions)
+            // float roadDistance = (last.odoValue - first.odoValue) * 1000;        // distance converted to meter
+            // float deltaY = last.altitude - first.altitude;                       // elevation difference
+            // float deltaX = sqrt(roadDistance * roadDistance - deltaY * deltaY ); // horizontal projection of roadDistance (pythagoras)
+            // approx calculation (error ~1.3% at 30%)
+            float deltaY      = fAlti - oldestAlti;         // elevation difference in meter
+            float deltaX      = (fOdo - oldestOdo) * 1000;  // distance converted to meter
+            float inclination = 0.0;
+            if (deltaX > 50.0)
+                inclination = round( (deltaY/deltaX) * 100 ); // in percent
+            stVirtSensorValue* pValue = m_sensorValues[DisplayData::VIRT_INCLINATION];
+            if (pValue)
+            {
+                pValue->setValue(inclination, timestamp );
+                // Serial.printf("calc inclination: %f %%\r\n", inclination);
+            }
         }
     }
 }
@@ -446,13 +496,15 @@ void VirtualSensors::FeedValue(DisplayData::enIds id, float fVal, uint32_t times
     if (id == DisplayData::BARO_ALTIMETER)
     {
         setValue(DisplayData::TRIP_ELEVATIONGAIN, fVal, timestamp); // BMP280 has noise which leads to a drift of ~20hm/h 
+        if( m_lastSpeed < 3.0 )
+            calcInclination(m_lastOdoValue, fVal, timestamp);
         m_lastAltitude = fVal;
     }
     else if (id == DisplayData::BLE_MOT_ODOMETER)
     {
         setValue(DisplayData::TRIP_DISTANCE, fVal, timestamp);
-        if (fVal != m_lastOdoValue) // has changed for at least 10 m
-            calcInclination( fVal, timestamp );
+        calcInclination(fVal, m_lastAltitude, timestamp);
+        m_lastOdoValue = fVal;
     }
     else if (id == DisplayData::BLE_BATT_REMAINWH)
     {
@@ -481,6 +533,7 @@ void VirtualSensors::FeedValue(DisplayData::enIds id, float fVal, uint32_t times
         setValue(DisplayData::TRIP_MAXSPEED, fVal, timestamp);
         setValue(DisplayData::TRIP_AVGSPEED, fVal, timestamp);
         calcConsumption(fVal, timestamp);
+        m_lastSpeed = fVal;
     }
     else if (id == DisplayData::BLE_MOT_TEMP)
     {
@@ -494,7 +547,7 @@ void VirtualSensors::FeedValue(DisplayData::enIds id, float fVal, uint32_t times
     }
 }
 
-// called approx. all 100ms from main loop to poll new trip values
+// called approx. all 50ms from main loop to poll new trip values
 bool VirtualSensors::Update(DisplayData::enIds& id, float& fVal, uint32_t timestamp)
 {
     // special handling for trip time

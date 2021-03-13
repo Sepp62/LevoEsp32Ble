@@ -25,6 +25,9 @@
  *      0.96   24/02/2021  virtual sensors (inclination) and trip/avg/peak values
  *                         mot power, batt voltage and batt current corrected
  *                         in LevoEsp32Ble
+ *      0.97   12/03/2021  bug fixes (inclination, trip power etc. ), refactoring
+ *                         simulator added (see #define): copy CSV full table log
+ *                         on SD, delete all non table data and rename it to "simulator.txt"
  */
 
 #include <M5core2.h>
@@ -39,23 +42,29 @@
 #include "AltimeterBMP280.h"
 #include "VirtualSensors.h"
 
+// #define SIMULATOR
+#ifdef SIMULATOR
+    #include "Simulator.h"
+    Simulator SensorSimulator;
+#endif
+
 Preferences     Prefs;
 LevoReadWrite   LevoBle;
 DisplayData     DispData;
 M5System        Core2;
-M5Screen        Screen;
 SystemStatus    SysStatus;
+M5Screen        Screen( SysStatus );
 FileLogger      Logger;
 AltimeterBMP280 Altimeter;
 VirtualSensors  VirtSensors;
 
 // local settings
-FileLogger::enLogFormat logFormat = FileLogger::CSV_SIMPLE;
-bool     bBtEnabled = true;
-uint16_t backlightTimeout = 60;
-bool     bBacklightCharging = true;
-bool     bHasAltimeter = false;
-float    sealevelhPa = 1013.25;
+FileLogger::enLogFormat _logFormat = FileLogger::CSV_SIMPLE;
+bool     _bBtEnabled = true;
+uint16_t _backlightTimeout = 60;
+bool     _bBacklightCharging = true;
+bool     _bHasAltimeter = false;
+float    _sealevelhPa = 1013.25;
 
 M5Screen::enScreens currentScreen = M5Screen::SCREEN_A;
 
@@ -84,17 +93,17 @@ void uninstallButtonHandlers()
 // read all settings to local settings
 void readPreferences()
 {
-    logFormat          = (FileLogger::enLogFormat)Prefs.getUChar("LogFormat");
-    bBtEnabled         = Prefs.getUChar("BtEnabled", 1) ? true : false;
-    backlightTimeout   = Prefs.getUShort("BacklightTo", 60);
-    bBacklightCharging = Prefs.getUChar("BacklightChg", 1) ? true : false;
-    sealevelhPa        = Prefs.getFloat("sealevelhPa", 1013.25);
+    _logFormat          = (FileLogger::enLogFormat)Prefs.getUChar("LogFormat");
+    _bBtEnabled         = Prefs.getUChar("BtEnabled", 1) ? true : false;
+    _backlightTimeout   = Prefs.getUShort("BacklightTo", 60);
+    _bBacklightCharging = Prefs.getUChar("BacklightChg", 1) ? true : false;
+    _sealevelhPa        = Prefs.getFloat("sealevelhPa", 1013.25);
 
-    Serial.printf("Log format: %d\r\n", logFormat);
-    Serial.printf("Bluetooth enabled: %d\r\n", bBtEnabled);
-    Serial.printf("Backlight timeout: %d\r\n", backlightTimeout);
-    Serial.printf("Backlight while charging: %d\r\n", bBacklightCharging);
-    Serial.printf("SealevelPressure (hPa): %f\r\n", sealevelhPa);
+    Serial.printf("Log format: %d\r\n", _logFormat);
+    Serial.printf("Bluetooth enabled: %d\r\n", _bBtEnabled);
+    Serial.printf("Backlight timeout: %d\r\n", _backlightTimeout);
+    Serial.printf("Backlight while charging: %d\r\n", _bBacklightCharging);
+    Serial.printf("SealevelPressure (hPa): %f\r\n", _sealevelhPa);
 }
 
 // Read bluetooth pin from preferences
@@ -116,42 +125,20 @@ void onBtSettings(Event& e)
     readPreferences();
     // reinit display
     Core2.ResetDisplayTimer();
-    Core2.SetBacklightSettings( backlightTimeout, bBacklightCharging );
+    Core2.SetBacklightSettings( _backlightTimeout, _bBacklightCharging );
     installButtonHandlers();
     Screen.Init(currentScreen, DispData);
     SysStatus.ResetBleStatus();
-    Screen.ShowSysStatus(SysStatus);
+    Screen.ShowSysStatus();
     // reconnect BLE
-    if( bBtEnabled )
+    if( _bBtEnabled )
         LevoBle.Reconnect();
-}
-
-void updateTripButtonStatus()
-{
-    VirtualSensors::enTripStatus tripStatus = VirtSensors.GetTripStatus();
-    if (tripStatus == VirtualSensors::STARTED )
-    {
-        SysStatus.tripStatus = SystemStatus::STARTED;
-        Screen.SetButtonBarButtonState(M5Screen::BTSTART, true);
-        Screen.SetButtonBarButtonState(M5Screen::BTSTOP, false);
-    }
-    else if (tripStatus == VirtualSensors::STOPPED )
-    {
-        SysStatus.tripStatus = SystemStatus::STOPPED;
-        Screen.SetButtonBarButtonState(M5Screen::BTSTART, false);
-        Screen.SetButtonBarButtonState(M5Screen::BTSTOP, true);
-    }
-    else if (tripStatus == VirtualSensors::RESET )
-    {
-        SysStatus.tripStatus = SystemStatus::NONE;
-        Screen.SetButtonBarButtonState(M5Screen::BTSTART, false);
-        Screen.SetButtonBarButtonState(M5Screen::BTSTOP, false);
-    }
 }
 
 void onBtTripOrTune(Event& e)
 {
-    // start: 0, stop: 1, reset: 2, tune: 3
+    // start: 0, stop: 1, finish: 2, tune: 3
+    // tune
     if( e.button->userData == M5Screen::BTTUNE )
     {
         uninstallButtonHandlers();
@@ -160,24 +147,36 @@ void onBtTripOrTune(Event& e)
         Screen.Init(currentScreen, DispData);
         installButtonHandlers();
     }
-    else if (e.button->userData == M5Screen::BTRESET)
+    // finish
+    else if (e.button->userData == M5Screen::BTFINISH)
     {
-        // LevoBle.Disconnect();
         uninstallButtonHandlers();
         if (M5ConfigForms::MsgBox("Finish tour & reset trip data?", M5ConfigForms::YESNO) == M5ConfigForms::RET_YES)
         {
-            VirtSensors.WriteStatisticsSD(DispData);
+            if( SysStatus.tripStatus != SystemStatus::NONE )
+                    VirtSensors.WriteStatisticsSD(DispData);
             VirtSensors.ResetTrip();
+            SysStatus.tripStatus = SystemStatus::NONE;
         }
         Core2.ResetDisplayTimer();
         Screen.Init(currentScreen, DispData);
         installButtonHandlers();
-        // LevoBle.Reconnect(); // todo generates a small fragment of a log file at the end of a trip
     }
+    // start
     else if (e.button->userData == M5Screen::BTSTART)
-        VirtSensors.StartTrip();
+    {
+        VirtSensors.StartTrip(DispData);
+        SysStatus.tripStatus = SystemStatus::STARTED;
+    }
+    // stop
     else if (e.button->userData == M5Screen::BTSTOP)
-        VirtSensors.StopTrip();
+    {
+        if( SysStatus.tripStatus == SystemStatus::STARTED )
+        {
+            VirtSensors.StopTrip();
+            SysStatus.tripStatus = SystemStatus::STOPPED;
+        }
+    }
 }
 
 void onBtScreen(Event& e)
@@ -227,11 +226,11 @@ void ShowBleMaxSupport(LevoEsp32Ble::stBleVal& bleVal, uint32_t timestamp )
     peakAssistVal.dataType  = LevoEsp32Ble::MOT_PEAKASSIST;
     peakAssistVal.unionType = LevoEsp32Ble::FLOAT;
     peakAssistVal.fVal = (float)bleVal.raw.data[0];
-    Logger.Writeln(DisplayData::BLE_MOT_PEAKASSIST1, peakAssistVal, DispData, logFormat, timestamp );
+    Logger.Writeln(DisplayData::BLE_MOT_PEAKASSIST1, peakAssistVal, DispData, _logFormat, timestamp );
     peakAssistVal.fVal = (float)bleVal.raw.data[1];
-    Logger.Writeln(DisplayData::BLE_MOT_PEAKASSIST2, peakAssistVal, DispData, logFormat, timestamp );
+    Logger.Writeln(DisplayData::BLE_MOT_PEAKASSIST2, peakAssistVal, DispData, _logFormat, timestamp );
     peakAssistVal.fVal = (float)bleVal.raw.data[2];
-    Logger.Writeln(DisplayData::BLE_MOT_PEAKASSIST3, peakAssistVal, DispData, logFormat, timestamp );
+    Logger.Writeln(DisplayData::BLE_MOT_PEAKASSIST3, peakAssistVal, DispData, _logFormat, timestamp );
 }
 
 // print and log received bluetooth data
@@ -277,7 +276,7 @@ void ShowBleData( LevoEsp32Ble::stBleVal & bleVal, uint32_t timestamp )
     else
     {
         // log unknown data and dump to serial
-        Logger.Writeln(id, bleVal, DispData, logFormat, timestamp );
+        Logger.Writeln(id, bleVal, DispData, _logFormat, timestamp );
     }
 }
 
@@ -288,8 +287,24 @@ void ShowFloatData(DisplayData::enIds id, float fVal, uint32_t timestamp )
     // log data and dump to serial
     LevoEsp32Ble::stBleVal bleVal;
     bleVal.unionType = LevoEsp32Ble::FLOAT; bleVal.fVal = fVal;
-    Logger.Writeln(id, bleVal, DispData, logFormat, timestamp );
+    Logger.Writeln(id, bleVal, DispData, _logFormat, timestamp );
 }
+
+// sensor simulator
+#ifdef SIMULATOR
+void Simulate(uint32_t timestamp)
+{
+    DisplayData::enIds id;
+    float fVal;
+    _bHasAltimeter = false;
+    if (SensorSimulator.Update( id, fVal, timestamp ) )
+    {
+        // Serial.printf("id: %d, val: %f\r\n", id, fVal );
+        Screen.ShowValue(id, fVal, DispData); // ouput to screen
+        VirtSensors.FeedValue(id, fVal, timestamp);
+    }
+}
+#endif
 
 void setup ()
 {
@@ -302,11 +317,11 @@ void setup ()
 
     // get settings
     readPreferences();
-    Core2.SetBacklightSettings(backlightTimeout, bBacklightCharging);
+    Core2.SetBacklightSettings(_backlightTimeout, _bBacklightCharging);
 
     // altimeter
-    bHasAltimeter = Altimeter.Init();
-    if( !bHasAltimeter )
+    _bHasAltimeter = Altimeter.Init();
+    if( !_bHasAltimeter )
     {
         DispData.Hide(DisplayData::BARO_ALTIMETER );
         DispData.Hide(DisplayData::VIRT_INCLINATION);
@@ -318,7 +333,7 @@ void setup ()
     Screen.Init(M5Screen::SCREEN_A, DispData);
 
     // bluetooth communication
-    LevoBle.Init( ReadBluetoothPin(), bBtEnabled );
+    LevoBle.Init( ReadBluetoothPin(), _bBtEnabled );
 
     // buttons
     installButtonHandlers();
@@ -328,6 +343,7 @@ void setup ()
 //////////////////////////////////////
 void loop ()
 {
+    static uint32_t ti50   = millis() + 50L;
     static uint32_t ti100  = millis() + 100L;
     static uint32_t ti1000 = millis() + 1000L;
 
@@ -339,37 +355,42 @@ void loop ()
     if (LevoBle.Update(bleVal))
         ShowBleData( bleVal, ti );
 
-    // do all 100ms
-    if (ti >= ti100)
+    #ifdef SIMULATOR
+        Simulate( ti );
+    #endif 
+
+    // do all 50ms
+    if (ti >= ti50)
     {
-        // print system status to screen
-        ti100 = ti + 100L;
-        SysStatus.UpdateBleStatus( LevoBle.GetBleStatus() );
-        Core2.CheckPower(SysStatus);
-        if (Screen.ShowSysStatus(SysStatus))
-            BleStatusChanged();
-
-        // dim display after some time
-        Core2.DoDisplayTimer();
-
-        // show state of start/stop/reset button
-        updateTripButtonStatus();
-
+        ti50 = ti + 50L;
         // get virtual sensor values
         DisplayData::enIds id; float fVal;
         if (VirtSensors.Update(id, fVal, ti))
             ShowFloatData(id, fVal, ti);
     }
 
+    // do all 100ms
+    if (ti >= ti100)
+    {
+        ti100 = ti + 100L;
+        // print system status to screen
+        SysStatus.UpdateBleStatus( LevoBle.GetBleStatus() );
+        Core2.CheckPower(SysStatus);
+        if (Screen.ShowSysStatus())
+            BleStatusChanged();
+
+        // dim display after some time
+        Core2.DoDisplayTimer();
+    }
+
     // do all 1000ms
     if (ti >= ti1000)
     {
         ti1000 = ti + 1000L;
-
         // Altimeter
-        if (bHasAltimeter)
+        if (_bHasAltimeter)
         {
-            float altitude = Altimeter.GetAltitude(sealevelhPa);
+            float altitude = Altimeter.GetAltitude(_sealevelhPa);
             ShowFloatData( DisplayData::BARO_ALTIMETER, altitude, ti );
             VirtSensors.FeedValue(DisplayData::BARO_ALTIMETER, altitude, ti);  // notify virtual sensors
         }

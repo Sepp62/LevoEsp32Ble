@@ -1,7 +1,7 @@
 /** Levo BLE ESP32 Data Dumper
  *
  *  Created: 01/01/2021
- *      Author: Bernd Woköck
+ *      Author: Bernd Wokoeck
  *
  */
 

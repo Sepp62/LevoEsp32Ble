@@ -1,7 +1,7 @@
 /** Levo BLE ESP32 Data Dumper
  *
  *  Created: 01/01/2021
- *      Author: Bernd Woköck
+ *      Author: Bernd Wokoeck
  *
  */
 
@@ -127,7 +127,7 @@ protected:
         { BARO_ALTIMETER,         "Elevation",      "m",    4, 0,               DYNAMIC },
         { VIRT_INCLINATION,       "Inclination",    "%",    3, 0,               DYNAMIC },
         { TRIP_DISTANCE,          "Trip dist.",     "km",   7, 2,               TRIP    },
-        { TRIP_TIME,              "Trip time",      "",     5, 0,               TRIP|TIME },
+        { TRIP_TIME,              "Trip time",      "",     8, 0,               TRIP|TIME },
         { TRIP_AVGSPEED,          "Avg speed",      "kmh",  5, 1,               TRIP    },
         { TRIP_RIDERENERGY,       "Rider energy",   "Wh",   4, 0,               TRIP    },
         { TRIP_MOTORENERGY,       "Motor energy",   "Wh",   4, 0,               TRIP    },
@@ -140,8 +140,8 @@ protected:
         { TRIP_PEAKMOTORPOWER,    "Peak Pmot",      "W",    4, 0,               TRIP    },
         { TRIP_MINBATTVOLTAGE,    "Min bat volt",   "V",    4, 1,               TRIP    },
         { TRIP_MAXSPEED,          "Max speed",      "kmh",  5, 1,               TRIP    },
-        { TRIP_CONSUMPTION,       "Trip Wh/km",     "",     4, 1,               TRIP    },
-        { VIRT_CONSUMPTION,       "Motor Wh/km",    "",     4, 1,               DYNAMIC },
+        { TRIP_CONSUMPTION,       "Trip Wh/km",     "",     5, 1,               TRIP    },
+        { VIRT_CONSUMPTION,       "Motor Wh/km",    "",     5, 1,               DYNAMIC },
     };
 
     std::bitset<numElements> hiddenMask;

@@ -1,7 +1,7 @@
 /*
  *
  *  Created: 21/02/2021
- *      Author: Bernd Woköck
+ *      Author: Bernd Wokoeck
  *
  * Altimeter function using a BMP280 module with Adafruit library
  * Derived from Adafruit example

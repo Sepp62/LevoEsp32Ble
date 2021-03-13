@@ -1,7 +1,7 @@
 /*
  *
  *  Created: 19/02/2021
- *      Author: Bernd Woköck
+ *      Author: Bernd Wokoeck
  *
  *  WIFI selection form
  *

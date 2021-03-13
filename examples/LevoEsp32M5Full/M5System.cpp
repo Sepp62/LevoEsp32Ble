@@ -1,7 +1,7 @@
 /*
  *
  *  Created: 01/02/2021
- *      Author: Bernd Woköck
+ *      Author: Bernd Wokoeck
  *
  * management of peripheral components of M5
  *
@@ -186,7 +186,7 @@ void M5System::Init()
 
     DisCoverScrollbuff.createSprite(320, 60);
     checkI2cAddr();
-    coverScrollText("LEVO BLE Version 0.96", M5.Lcd.color565(SUCCESS_COLOR));
+    coverScrollText("LEVO BLE Version 0.97", M5.Lcd.color565(SUCCESS_COLOR));
     DisCoverScrollbuff.deleteSprite();
 
     delay(500);

@@ -1,7 +1,7 @@
 /*
  * 
  *  Created: 01/02/2021
- *      Author: Bernd Woköck
+ *      Author: Bernd Wokoeck
  *
  * main entry point for display of all data values on M5
  *
@@ -17,7 +17,7 @@
 #include "SystemStatus.h"
 #include "M5TripTuneButtons.h"
 
-class M5Screen : public DisplayData
+class M5Screen
 {
 public:
     typedef enum
@@ -31,13 +31,15 @@ public:
 
     typedef enum // keep consistent with code in M5TripTuneButtons (userData)
     {
-        BTSTART = M5TripTuneButtons::BTSTART,
-        BTSTOP  = M5TripTuneButtons::BTSTOP, 
-        BTRESET = M5TripTuneButtons::BTRESET,
-        BTTUNE  = M5TripTuneButtons::BTTUNE,
+        BTSTART  = M5TripTuneButtons::BTSTART,
+        BTSTOP   = M5TripTuneButtons::BTSTOP, 
+        BTFINISH = M5TripTuneButtons::BTFINISH,
+        BTTUNE   = M5TripTuneButtons::BTTUNE,
     } enButtons;
 
 protected:
+    SystemStatus& m_sysStatus;
+
     const int START_Y = 32;  // Y start position on screen
 
     typedef struct
@@ -46,11 +48,11 @@ protected:
         int y;
         M5Field* pField;
     } stRender;
-    stRender m_fldRender[numElements];
+    stRender m_fldRender[DisplayData::numElements];
 
-    int m_idToIdx[numElements]; // lookup table for fast access from id to idx (for current screen only)
+    int m_idToIdx[DisplayData::numElements]; // lookup table for fast access from id to idx (for current screen only)
 
-    void renderEmptyValue(stRender& render, const stDisplayData* pDesc );
+    void renderEmptyValue(stRender& render, const DisplayData::stDisplayData* pDesc );
     void formatAsTime(float val, size_t nLen, char * strVal);
 
     // counter for showing system Status to slow down refresh rate
@@ -61,7 +63,7 @@ protected:
 
     // value buffer for ble values in display
     const float FLOAT_UNDEFINED = -10000.0f;
-    float m_valueBuffer[ numElements ]; // index is value id
+    float m_valueBuffer[ DisplayData::numElements ]; // index is value id
 
     // last BLE status 
     LevoEsp32Ble::enBleStatus m_lastBleStatus = LevoEsp32Ble::UNDEFINED;
@@ -71,29 +73,31 @@ protected:
     M5TripTuneButtons m_tripTuneButtons;
     void (*m_fnButtonBarEvent)(Event&) = NULL;
     void enableButtonBar(void (*fnBtEvent)(Event&)) { m_tripTuneButtons.Enable(fnBtEvent); }
+    void updateTripButtonStatus();
 
     // field order on screens, unused elements must be UNKNOWN
     const uint32_t NEWLINE = 0x80000000;
+    const uint32_t UNKNOWN = DisplayData::UNKNOWN;
     bool hasLineBreak(enScreens nScreen, int i);
-    enIds getIdFromIdx(enScreens nScreen, int i);
-    const uint32_t m_order[NUM_SCREENS][numElements] =
+    DisplayData::enIds getIdFromIdx(enScreens nScreen, int i);
+    const uint32_t m_order[NUM_SCREENS][DisplayData::numElements] =
     {
         {   // Screen A
-            BLE_MOT_SPEED,
-            BLE_RIDER_POWER,
-            BLE_MOT_POWER,
-            BLE_BATT_CURRENT,
-            BLE_BATT_VOLTAGE,
-            BLE_BATT_REMAINWH,
-            BLE_BATT_CHARGEPERCENT,
-            BLE_MOT_CADENCE,
-            BLE_MOT_ASSISTLEVEL,
-            BLE_MOT_ODOMETER,
-            BLE_BATT_TEMP,
-            BLE_MOT_TEMP,
-            BARO_ALTIMETER,
-            VIRT_INCLINATION,
-            VIRT_CONSUMPTION,
+            DisplayData::BLE_MOT_SPEED,
+            DisplayData::BLE_RIDER_POWER,
+            DisplayData::BLE_MOT_POWER,
+            DisplayData::BLE_BATT_CURRENT,
+            DisplayData::BLE_BATT_VOLTAGE,
+            DisplayData::BLE_BATT_REMAINWH,
+            DisplayData::BLE_BATT_CHARGEPERCENT,
+            DisplayData::BLE_MOT_CADENCE,
+            DisplayData::BLE_MOT_ASSISTLEVEL,
+            DisplayData::BLE_MOT_ODOMETER,
+            DisplayData::BLE_BATT_TEMP,
+            DisplayData::BLE_MOT_TEMP,
+            DisplayData::BARO_ALTIMETER,
+            DisplayData::VIRT_INCLINATION,
+            DisplayData::VIRT_CONSUMPTION,
             UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN,
             UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN,
             UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN,
@@ -102,19 +106,19 @@ protected:
             UNKNOWN, UNKNOWN, UNKNOWN,
         },
         {   // Screen B
-            BLE_MOT_PEAKASSIST1,
-            BLE_MOT_PEAKASSIST2,
-            BLE_MOT_PEAKASSIST3,
-            BLE_BIKE_ASSISTLEV1 | NEWLINE,
-            BLE_BIKE_ASSISTLEV2,
-            BLE_BIKE_ASSISTLEV3,
-            BLE_BIKE_FAKECHANNEL | NEWLINE,
-            BLE_MOT_SHUTTLE,
-            BLE_BIKE_ACCEL,
-            BLE_BATT_SIZEWH | NEWLINE,
-            BLE_BIKE_WHEELCIRC,
-            BLE_BATT_CHARGECYCLES,
-            BLE_BATT_HEALTH,
+            DisplayData::BLE_MOT_PEAKASSIST1,
+            DisplayData::BLE_MOT_PEAKASSIST2,
+            DisplayData::BLE_MOT_PEAKASSIST3,
+            DisplayData::BLE_BIKE_ASSISTLEV1 | NEWLINE,
+            DisplayData::BLE_BIKE_ASSISTLEV2,
+            DisplayData::BLE_BIKE_ASSISTLEV3,
+            DisplayData::BLE_BIKE_FAKECHANNEL | NEWLINE,
+            DisplayData::BLE_MOT_SHUTTLE,
+            DisplayData::BLE_BIKE_ACCEL,
+            DisplayData::BLE_BATT_SIZEWH | NEWLINE,
+            DisplayData::BLE_BIKE_WHEELCIRC,
+            DisplayData::BLE_BATT_CHARGECYCLES,
+            DisplayData::BLE_BATT_HEALTH,
             UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN,
             UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN,
             UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN,
@@ -123,37 +127,37 @@ protected:
             UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN,
         },
         {   // Screen C
-            TRIP_DISTANCE,
-            TRIP_TIME,
-            TRIP_ELEVATIONGAIN,
-            TRIP_AVGSPEED,
-            TRIP_MAXSPEED,
-            TRIP_MINBATTVOLTAGE,
-            TRIP_RIDERENERGY,
-            TRIP_BATTENERGY,
-            TRIP_PEAKMOTTEMP,
-            TRIP_PEAKBATTTEMP,
-            TRIP_PEAKBATTCURRENT,
-            TRIP_PEAKRIDERPOWER,
-            TRIP_PEAKMOTORPOWER,
-            TRIP_CONSUMPTION, // TRIP_MOTORENERGY,
-            UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN,
-            UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN,
-            UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN,
-            UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN,
-            UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN,
-            UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN,
+            DisplayData::TRIP_DISTANCE,
+            DisplayData::TRIP_TIME,
+            DisplayData::TRIP_ELEVATIONGAIN,
+            DisplayData::TRIP_AVGSPEED,
+            DisplayData::TRIP_MAXSPEED,
+            DisplayData::TRIP_MINBATTVOLTAGE,
+            DisplayData::TRIP_RIDERENERGY,
+            DisplayData::TRIP_BATTENERGY,
+            DisplayData::TRIP_PEAKMOTTEMP,
+            DisplayData::TRIP_PEAKBATTTEMP,
+            DisplayData::TRIP_PEAKBATTCURRENT,
+            DisplayData::TRIP_PEAKRIDERPOWER,
+            DisplayData::TRIP_PEAKMOTORPOWER,
+            DisplayData::TRIP_CONSUMPTION, // TRIP_MOTORENERGY,
+           UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN,
+           UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN,
+           UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN,
+           UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN,
+           UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN,
+           UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN,
         }
     };
 
 public:
-    M5Screen() { ResetValueBuffer(); }
+    M5Screen(SystemStatus& rSystemStatus) : m_sysStatus(rSystemStatus) { ResetValueBuffer(); }
 
     void Init(enScreens nScreen, DisplayData& dispData );
-    void ShowValue( enIds id, float val, DisplayData& dispData );
-    bool ShowSysStatus(SystemStatus& sysStatus);
+    void ShowValue( DisplayData::enIds id, float val, DisplayData& dispData );
+    bool ShowSysStatus();
     void ShowConfig(Preferences& prefs);
-    void ResetValueBuffer() { for( int i = 0; i < numElements; i++ ) m_valueBuffer[i] = FLOAT_UNDEFINED; }
+    void ResetValueBuffer() { for( int i = 0; i < DisplayData::numElements; i++ ) m_valueBuffer[i] = FLOAT_UNDEFINED; }
     void UpdateHardwareButtons(enScreens nScreen);
 
     void SetButtonBarHandler(void (*fnBtEvent)(Event&)) { m_fnButtonBarEvent = fnBtEvent; }

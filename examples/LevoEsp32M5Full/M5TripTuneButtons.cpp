@@ -52,14 +52,14 @@ void M5TripTuneButtons::createButtons()
 {
     const int START_Y = 188;
     deleteButtons();
-    pButtons[BTSTART] = new Button(   6, START_Y, 68, 28, false, "Start",  { NODRAW, NODRAW, NODRAW }, { NODRAW, NODRAW, NODRAW }, TC_DATUM, 0, 0, 0xFF );
-    pButtons[BTSTOP]  = new Button(  90, START_Y, 68, 28, false, "Stop",   { NODRAW, NODRAW, NODRAW }, { NODRAW, NODRAW, NODRAW }, TC_DATUM, 0, 0, 0xFF);
-    pButtons[BTRESET] = new Button( 170, START_Y, 68, 28, false, "Finish", { NODRAW, NODRAW, NODRAW }, { NODRAW, NODRAW, NODRAW }, TC_DATUM, 0, 0, 0xFF);
-    pButtons[BTTUNE]  = new Button( 248, START_Y, 68, 28, false, "Tune",   { NODRAW, NODRAW, NODRAW }, { NODRAW, NODRAW, NODRAW }, TC_DATUM, 0, 0, 0xFF);
-    pButtons[BTSTART]->userData = BTSTART;
-    pButtons[BTSTOP]->userData  = BTSTOP;
-    pButtons[BTRESET]->userData = BTRESET;
-    pButtons[BTTUNE]->userData  = BTTUNE;
+    pButtons[BTSTART]  = new Button(   6, START_Y, 68, 28, false, "Start",  { NODRAW, NODRAW, NODRAW }, { NODRAW, NODRAW, NODRAW }, TC_DATUM, 0, 0, 0xFF );
+    pButtons[BTSTOP]   = new Button(  90, START_Y, 68, 28, false, "Stop",   { NODRAW, NODRAW, NODRAW }, { NODRAW, NODRAW, NODRAW }, TC_DATUM, 0, 0, 0xFF );
+    pButtons[BTFINISH] = new Button( 170, START_Y, 68, 28, false, "Finish", { NODRAW, NODRAW, NODRAW }, { NODRAW, NODRAW, NODRAW }, TC_DATUM, 0, 0, 0xFF );
+    pButtons[BTTUNE]   = new Button( 248, START_Y, 68, 28, false, "Tune",   { NODRAW, NODRAW, NODRAW }, { NODRAW, NODRAW, NODRAW }, TC_DATUM, 0, 0, 0xFF );
+    pButtons[BTSTART]->userData  = BTSTART;
+    pButtons[BTSTOP]->userData   = BTSTOP;
+    pButtons[BTFINISH]->userData = BTFINISH;
+    pButtons[BTTUNE]->userData   = BTTUNE;
     stateMask = 0;
 };
 

@@ -1,6 +1,6 @@
 /*
  *  Created: 01/02/2021
- *      Author: Bernd Woköck
+ *      Author: Bernd Wokoeck
  *
  *  Rendering a data value field on M5 screen
  *

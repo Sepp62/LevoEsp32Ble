@@ -1,6 +1,6 @@
 /*
  *  Created: 19/02/2021
- *      Author: Bernd Woköck
+ *      Author: Bernd Wokoeck
  *
  *  Configuration forms for settings
  *
