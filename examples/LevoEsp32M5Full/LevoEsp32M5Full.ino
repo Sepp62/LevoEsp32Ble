@@ -28,6 +28,7 @@
  *      0.97   12/03/2021  bug fixes (inclination, trip power etc. ), refactoring
  *                         simulator added (see #define): copy CSV full table log
  *                         on SD, delete all non table data and rename it to "simulator.txt"
+ *      0.98   14/03/2021  trip range added, bug fixes
  */
 
 #include <M5core2.h>
@@ -296,6 +297,8 @@ void Simulate(uint32_t timestamp)
 {
     DisplayData::enIds id;
     float fVal;
+    // _bBtEnabled = true;
+    // SysStatus.UpdateBleStatus(LevoEsp32Ble::CONNECTED);
     _bHasAltimeter = false;
     if (SensorSimulator.Update( id, fVal, timestamp ) )
     {

@@ -98,6 +98,7 @@ protected:
             DisplayData::BARO_ALTIMETER,
             DisplayData::VIRT_INCLINATION,
             DisplayData::VIRT_CONSUMPTION,
+            DisplayData::TRIP_RANGE,
             UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN,
             UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN,
             UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN,
@@ -125,6 +126,7 @@ protected:
             UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN,
             UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN,
             UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN,
+            UNKNOWN,
         },
         {   // Screen C
             DisplayData::TRIP_DISTANCE,
@@ -146,7 +148,7 @@ protected:
            UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN,
            UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN,
            UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN,
-           UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN,
+           UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN,
         }
     };
 

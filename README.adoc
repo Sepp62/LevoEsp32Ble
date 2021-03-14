@@ -17,3 +17,4 @@
     0.97   12/03/2021  bug fixes (inclination, trip power etc. ), refactoring
                        simulator added (see #define): copy CSV full table log
                        on SD, delete all non table data and rename it to "simulator.txt"
+    0.98   14/03/2021  trip range added, bug fixes

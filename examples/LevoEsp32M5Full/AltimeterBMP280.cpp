@@ -5,6 +5,9 @@
  *
  * Altimeter function using a BMP280 module with Adafruit library
  * Derived from Adafruit example
+ * 
+ * For use with M5Core2: SDA and SCL to pin 32 and 33
+ * (PA_SDA & PA_SCL --> access via class "Wire")
  *
  */
 

@@ -60,11 +60,12 @@ protected:
     InclinationQueue m_queue;
 
     // value history 
-    float m_lastOdoValue = 0.0;
-    float m_lastAltitude = 0.0;
-    float m_lastMotPower = 0.0;
-    float m_lastBattTemp = 0.0;
-    float m_lastSpeed    = 0.0;
+    float m_lastOdoValue   = 0.0;
+    float m_lastAltitude   = 0.0;
+    float m_lastMotPower   = 0.0;
+    float m_lastBattTemp   = 0.0;
+    float m_lastSpeed      = 0.0;
+    float m_lastBattEnergy = 0.0;
 
     // start stop time values
     uint32_t m_startTime = 0L;
@@ -150,7 +151,7 @@ protected:
         stSimpleValue() : value(0.0) {}
         float value;
         virtual void stop() {}
-        virtual void reset() {}
+        virtual void reset() { value = 0.0; }
         virtual void setValue(float fVal, uint32_t timestamp);
         virtual bool deliverValue(float& fVal, bool bForce = false);
     };

@@ -17,6 +17,7 @@ VirtualSensors::VirtualSensors()
     m_sensorValues[DisplayData::VIRT_INCLINATION]     = new stSimpleValue;
     m_sensorValues[DisplayData::VIRT_CONSUMPTION]     = new stSimpleValue;
     m_sensorValues[DisplayData::TRIP_CONSUMPTION]     = new stSimpleValue;
+    m_sensorValues[DisplayData::TRIP_RANGE]           = new stSimpleValue;
     m_sensorValues[DisplayData::TRIP_TIME]            = new stAbsDifferenceValue;
     m_sensorValues[DisplayData::TRIP_DISTANCE]        = new stAbsDifferenceValue;
     m_sensorValues[DisplayData::TRIP_AVGSPEED]        = new stAverageValue;
@@ -405,6 +406,7 @@ void VirtualSensors::calcConsumption(float fSpeed, uint32_t timestamp)
         pValue->setValue(consumption, timestamp);
 
     // TRIP_CONSUMPTION
+    float tripConsumption = 0.0;
     stVirtSensorValue* pValueMotEnergy    = m_sensorValues[DisplayData::TRIP_MOTORENERGY];
     stVirtSensorValue* pValueTripDistance = m_sensorValues[DisplayData::TRIP_DISTANCE];
     if (pValueMotEnergy && pValueTripDistance)
@@ -414,8 +416,18 @@ void VirtualSensors::calcConsumption(float fSpeed, uint32_t timestamp)
         {
             stVirtSensorValue* pValueTripConsumption = m_sensorValues[DisplayData::TRIP_CONSUMPTION];
             if( pValueTripConsumption && tripDistance != 0.0 )
-                pValueTripConsumption->setValue(motEnergy/tripDistance, timestamp );
+            {
+                tripConsumption = motEnergy/tripDistance;
+                pValueTripConsumption->setValue(tripConsumption, timestamp );
+            }
         }
+    }
+    // TRIP_RANGE
+    stVirtSensorValue* pValueTripRange = m_sensorValues[DisplayData::TRIP_RANGE];
+    if( pValueTripRange && tripConsumption >= 2.0 )
+    {
+        float range = m_lastBattEnergy/tripConsumption;
+        pValueTripRange->setValue( range, timestamp );
     }
 }
 
@@ -509,6 +521,7 @@ void VirtualSensors::FeedValue(DisplayData::enIds id, float fVal, uint32_t times
     else if (id == DisplayData::BLE_BATT_REMAINWH)
     {
         setValue(DisplayData::TRIP_BATTENERGY, fVal, timestamp);
+        m_lastBattEnergy = fVal;
     }
     else if (id == DisplayData::BLE_BATT_TEMP)
     {

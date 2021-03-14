@@ -46,7 +46,7 @@ public:
         BLE_BIKE_ASSISTLEV3,
         BLE_BIKE_FAKECHANNEL,
         BLE_BIKE_ACCEL,
-        // ...in the future: Elevation, GPS, ANT+, CAN and other values
+        // non BLE values:
         BARO_ALTIMETER,
         VIRT_INCLINATION,
         TRIP_DISTANCE,
@@ -65,6 +65,7 @@ public:
         TRIP_MAXSPEED,
         TRIP_CONSUMPTION,
         VIRT_CONSUMPTION,
+        TRIP_RANGE,
 
         NUM_ELEMENTS // must be the last value
     } enIds;
@@ -142,6 +143,7 @@ protected:
         { TRIP_MAXSPEED,          "Max speed",      "kmh",  5, 1,               TRIP    },
         { TRIP_CONSUMPTION,       "Trip Wh/km",     "",     5, 1,               TRIP    },
         { VIRT_CONSUMPTION,       "Motor Wh/km",    "",     5, 1,               DYNAMIC },
+        { TRIP_RANGE,             "Trip range",     "km",   4, 0,               TRIP    },
     };
 
     std::bitset<numElements> hiddenMask;
