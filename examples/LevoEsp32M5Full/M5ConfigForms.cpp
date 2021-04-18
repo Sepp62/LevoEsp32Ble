@@ -134,7 +134,7 @@ void M5ConfigForms::CheckButtons(int nPressed, stItem* pItems, int nItems, Butto
     }
 }
 
-// show check item page (max. 5 items)
+// show check item page (max. 6 items)
 int M5ConfigForms::PageCheckMenu(stItem* pItems, int nItems)
 {
     int cmd = 0;
@@ -149,13 +149,19 @@ int M5ConfigForms::PageCheckMenu(stItem* pItems, int nItems)
 
     // buttons/menu items
     int i;
-    const int cx = 250, cy = 35;
+    int cx = 250, cy = 35;
     int yinc = 200 / nItems;  // 50 pixel @4 buttons
     int x = M5.lcd.width() / 2 - cx / 2, y = 32;
-    const int maxButtons = 5;
+    const int maxButtons = 6;
+
+    if( nItems == 6 ) // todo quick and dirty
+    {
+        y = 0;
+        yinc = 40;
+    }
 
     nItems = min(nItems, maxButtons);
-    Button* pButtons[maxButtons] = { NULL,NULL,NULL,NULL,NULL };
+    Button* pButtons[maxButtons] = { NULL,NULL,NULL,NULL,NULL,NULL };
     for (i = 0; i < nItems; i++)
     {
         if (pItems[i].type == BUTTON)
@@ -202,13 +208,13 @@ int M5ConfigForms::PageCheckMenu(stItem* pItems, int nItems)
                 else if (pItems[i].type == NUMINPUT || pItems[i].type == TXTINPUT)
                 {
                     String text;
-                    M5Keyboard::key_mode_t keyMode = (pItems[i].type == NUMINPUT) ? M5Keyboard::KEY_MODE_NUMBER : M5Keyboard::KEY_MODE_LETTER;
+                    M5Keyboard::key_mode_t keyMode = (pItems[i].type == NUMINPUT) ? M5Keyboard::KEY_MODE_FNUMERIC : M5Keyboard::KEY_MODE_LETTER;
                     M5Keyboard keyb;
                     if (keyb.Show(text, pItems[i].label, keyMode))
                     {
                         char label[51];
                         snprintf(label, sizeof(label), "%s: %s", pItems[i].label, text.c_str());
-                        snprintf(pItems[i].value, sizeof(pItems[i].lenValue), "%s", text.c_str());
+                        snprintf(pItems[i].value, pItems[i].lenValue, "%s", text.c_str());
                         pButtons[i]->setLabel(label);
                     }
                     M5.Buttons.draw();
@@ -364,6 +370,139 @@ RETRY:
         MsgBox("Error setting time!");
 }
 
+void M5ConfigForms::OnCmdPowerMore(Preferences& prefs)
+{
+    int cmd = 0;
+
+    stItem items[5] =
+    {
+        { 1, NUMINPUT, false, "# of calibration runs", NULL, 0 },
+        { 2, NUMINPUT, false, "Average rider power",   NULL, 0 },
+        { 3, NUMINPUT, false, "Default air temp",      NULL, 0 },
+        { 4, NUMINPUT, false, "Default altitude",      NULL, 0 },
+        { 0, BUTTON,   false, "Back",                  NULL, 0 },
+    };
+
+    // number of calibration runs
+    char strnRuns[10];
+    uint16_t nRuns = prefs.getUChar("Sp_nRuns", 4);
+    snprintf(strnRuns, sizeof(strnRuns), "%d", nRuns);
+    items[0].value = strnRuns;
+    items[0].lenValue = sizeof(strnRuns);
+
+    // avgRiderPower
+    char strAvgRiderPower[10];
+    float avgRiderPower = prefs.getFloat("Sp_avgRdPower", 100.0);
+    dtostrf(avgRiderPower, 3, 0, strAvgRiderPower);
+    items[1].value = strAvgRiderPower;
+    items[1].lenValue = sizeof(strAvgRiderPower);
+
+    // default air temp
+    char strDefaultAirTemp[10];
+    float defaultAirTemp = prefs.getFloat("Sp_defAirTemp", 18.0);
+    dtostrf(defaultAirTemp, 3, 1, strDefaultAirTemp);
+    items[2].value = strDefaultAirTemp;
+    items[2].lenValue = sizeof(strDefaultAirTemp);
+
+    // default altitude
+    char strDefaultAltitude[10];
+    float defaultAltitude = prefs.getFloat("Sp_defAlt", 100.0);
+    dtostrf(defaultAltitude, 4, 0, strDefaultAltitude);
+    items[3].value = strDefaultAltitude;
+    items[3].lenValue = sizeof(strDefaultAltitude);
+
+    while ((cmd = PageCheckMenu(items, N_ELE(items))) != 0)
+    {
+        ;
+    }
+
+    // number of calibration runs
+    uint8_t nRuns2 = atoi(items[0].value);
+    if (nRuns != nRuns2 && nRuns2 > 0 && nRuns2 < 16)
+        prefs.putUChar("Sp_nRuns", nRuns2);
+
+    // avgRiderPower
+    float avgRiderPower2 = atof(items[1].value);
+    if (avgRiderPower != avgRiderPower2 && avgRiderPower2 > 10.0 && avgRiderPower2 < 400.0)
+        prefs.putFloat("Sp_avgRdPower", avgRiderPower2);
+
+    // default air temp
+    float defaultAirTemp2 = atof(items[2].value);
+    if (defaultAirTemp != defaultAirTemp2 && defaultAirTemp2 > -20.0 && defaultAirTemp2 < 40.0)
+        prefs.putFloat("Sp_defAirTemp", defaultAirTemp2);
+
+    // default altitude
+    float defaultAltitude2 = atof(items[3].value);
+    if (defaultAltitude != defaultAltitude2 && defaultAltitude2 > 0.0 && defaultAltitude2 < 5000.0)
+        prefs.putFloat("Sp_defAlt", defaultAltitude2);
+}
+
+void M5ConfigForms::OnCmdPower(Preferences& prefs)
+{
+    int cmd = 0;
+
+    stItem items[6] =
+    {
+        { 1, CHECKBOX, false, "Enable calibration", NULL, 0 },
+        { 2, NUMINPUT, false, "System mass (kg)", NULL, 0 },
+        { 3, NUMINPUT, false, "Roll resist", NULL, 0 },
+        { 4, NUMINPUT, false, "Air resist", NULL, 0 },
+        { 5, BUTTON,   false, "More...", NULL, 0 },
+        { 0, BUTTON,   false, "Back", NULL, 0 },
+    };
+
+    // power calibration mode
+    bool bCalib = items[0].bChecked = prefs.getUChar("PwrCalibEnabled", 0) ? true : false;
+
+    // mass
+    char strMass[10];
+    float mass = prefs.getFloat("Sp_mass", 110.0);
+    dtostrf( mass, 3, 0, strMass);
+    items[1].value = strMass;
+    items[1].lenValue = sizeof(strMass);
+
+    // cR
+    char strcR[10];
+    float cR = prefs.getFloat("Sp_cR", 0.0);
+    dtostrf( cR, 9, 7, strcR);
+    items[2].value = strcR;
+    items[2].lenValue = sizeof(strcR);
+
+    // cwA
+    char strcwA[10];
+    float cwA = prefs.getFloat("Sp_cwA", 0.0);
+    dtostrf( cwA, 9, 7, strcwA);
+    items[3].value = strcwA;
+    items[3].lenValue = sizeof(strcwA);
+
+    while ((cmd = PageCheckMenu(items, N_ELE(items))) != 0)
+    {
+        switch (cmd)
+        {
+        case 5: OnCmdPowerMore(prefs); break;
+        }
+    }
+
+    // write power calibration enabled state
+    if (items[0].bChecked != bCalib);
+        prefs.putUChar("PwrCalibEnabled", items[0].bChecked ? 1 : 0);
+
+    // system mass
+    float mass2 = atof(items[1].value);
+    if ( mass != mass2 && mass2 > 50.0 && mass2 < 200.0 )
+        prefs.putFloat("Sp_mass", mass2);
+
+    // cR
+    float cR2 = atof(items[2].value);
+    if ( cR2 != cR && cR2 < 1.0 && cR2 > 0.0001 )
+        prefs.putFloat("Sp_cR", cR2);
+
+    // cwA
+    float cwA2 = atof(items[3].value);
+    if (cwA2 != cwA && cwA2 < 1.0 && cwA2 > 0.1)
+        prefs.putFloat("Sp_cwA", cwA2);
+}
+
 void M5ConfigForms::OnCmdScreen(Preferences& prefs)
 {
     int cmd = 0;
@@ -473,7 +612,7 @@ void M5ConfigForms::OnCmdAltimeter(Preferences& prefs)
             float sealevelhPa = AltimeterBMP280::GetCurrentSealevelhPa((float)altitude);
             if(sealevelhPa != 0.0 )
             {
-                prefs.putFloat("sealevelhPa", sealevelhPa);
+                prefs.putFloat("SealevelhPa", sealevelhPa);
                 Serial.printf("SealevelPressure (hPa): %f\r\n", sealevelhPa);
             }
         }
@@ -535,11 +674,12 @@ void M5ConfigForms::ShowMenu(Preferences& prefs)
 {
     int cmd = 0;
 
-    stItem items[4] =
+    stItem items[5] =
     {
         { 1, CHECKBOX, false, "Bluetooth on", NULL, 0 },
         { 2, BUTTON,   false, "Log file format", NULL, 0 },
-        { 3, BUTTON,   false, "More...", NULL, 0 },
+        { 3, BUTTON,   false, "Power & Range", NULL, 0 },
+        { 4, BUTTON,   false, "More...", NULL, 0 },
         { 0, BUTTON,   false, "Back", NULL, 0 },
     };
 
@@ -552,7 +692,8 @@ void M5ConfigForms::ShowMenu(Preferences& prefs)
         switch (cmd)
         {
         case 2: OnCmdLogging(prefs);     break;
-        case 3: OnCmdMore( prefs );      break;
+        case 3: OnCmdPower(prefs);       break;
+        case 4: OnCmdMore( prefs );      break;
         }
     }
 

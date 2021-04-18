@@ -10,8 +10,6 @@
 #include <M5Core2.h>
 #include "VirtualSensors.h"
 
-// todo TRIP_MOTORENERGY and TRIP_BATTENERGY should be the same, invent TRIP_CONSUMPTION (Wh/km) instead
-
 VirtualSensors::VirtualSensors()
 {
     m_sensorValues[DisplayData::VIRT_INCLINATION]     = new stSimpleValue;
@@ -32,6 +30,7 @@ VirtualSensors::VirtualSensors()
     m_sensorValues[DisplayData::TRIP_PEAKMOTORPOWER]  = new stPeakValue;
     m_sensorValues[DisplayData::TRIP_MINBATTVOLTAGE]  = new stMinValue;
     m_sensorValues[DisplayData::TRIP_MAXSPEED]        = new stPeakValue;
+    m_sensorValues[DisplayData::TRIP_RIDERPOWER]      = new stAverageNonZeroValue;
 }
 
 void VirtualSensors::StartTrip(DisplayData& DispData)
@@ -97,7 +96,7 @@ bool VirtualSensors::WriteStatisticsSD(DisplayData& DispData)
     RTC_TimeTypeDef RTC_Time;
     M5.Rtc.GetDate(&RTC_Date);
     M5.Rtc.GetTime(&RTC_Time);
-    snprintf(filename, sizeof( filename), "/%02.2d%02.2d%02.2d.txt", RTC_Date.Date, RTC_Date.Month, RTC_Date.Year);
+    snprintf(filename, sizeof( filename), "/%02d%02d%02d.txt", RTC_Date.Date, RTC_Date.Month, (uint8_t)(RTC_Date.Year-2000));
 
     // check card
     sdcard_type_t Type = SD.cardType();
@@ -368,6 +367,21 @@ void VirtualSensors::stAverageValue::setValue(float fVal, uint32_t timestamp)
     bChanged = true;
 }
 
+// rider power
+void VirtualSensors::stAverageNonZeroValue::setValue(float fVal, uint32_t timestamp)
+{
+    if (lastTime == 0)
+        lastTime = timestamp;
+    if( fVal > 0.0 )
+    {
+        float integrationTime = (timestamp - lastTime) / 1000.0; // sec
+        sumTime += integrationTime;
+        currentTripValue += fVal * integrationTime;
+        bChanged = true;
+    }
+    lastTime = timestamp;
+}
+
 // power consumption, altitude
 void VirtualSensors::stSimpleValue::setValue(float fVal, uint32_t timestamp)
 {
@@ -473,20 +487,19 @@ void VirtualSensors::calcInclination(float fOdo, float fAlti, uint32_t timestamp
             m_queue.PushHead(fOdo, fAlti); // add new after removing oldest
 
             // exact calculation (prone to exceptions)
-            // float roadDistance = (last.odoValue - first.odoValue) * 1000;        // distance converted to meter
-            // float deltaY = last.altitude - first.altitude;                       // elevation difference
-            // float deltaX = sqrt(roadDistance * roadDistance - deltaY * deltaY ); // horizontal projection of roadDistance (pythagoras)
-            // approx calculation (error ~1.3% at 30%)
-            float deltaY      = fAlti - oldestAlti;         // elevation difference in meter
-            float deltaX      = (fOdo - oldestOdo) * 1000;  // distance converted to meter
-            float inclination = 0.0;
-            if (deltaX > 50.0)
-                inclination = round( (deltaY/deltaX) * 100 ); // in percent
-            stVirtSensorValue* pValue = m_sensorValues[DisplayData::VIRT_INCLINATION];
-            if (pValue)
+            float roadDist = (fOdo - oldestOdo) * 1000;  // distance converted to meter
+            float deltaY   = fAlti - oldestAlti;         // elevation difference in meter
+            if (roadDist > deltaY)
             {
-                pValue->setValue(inclination, timestamp );
-                // Serial.printf("calc inclination: %f %%\r\n", inclination);
+                float deltaX = sqrt((roadDist * roadDist) - (deltaY * deltaY));           // horizontal projection of roadDistance (pythagoras)
+                float inclinationPercent = (deltaX > 20.0) ? (deltaY/deltaX)*100.0 : 0.0; // measure at least 20m
+                stVirtSensorValue* pValue = m_sensorValues[DisplayData::VIRT_INCLINATION];
+                if (pValue)
+                {
+                    pValue->setValue(inclinationPercent, timestamp);
+                    // Serial.printf("calc inclination: %f %%\r\n", inclinationPercent);
+                }
+
             }
         }
     }
@@ -540,6 +553,7 @@ void VirtualSensors::FeedValue(DisplayData::enIds id, float fVal, uint32_t times
     {
         setValue(DisplayData::TRIP_PEAKRIDERPOWER, fVal, timestamp);
         setValue(DisplayData::TRIP_RIDERENERGY, fVal, timestamp);
+        setValue(DisplayData::TRIP_RIDERPOWER, fVal, timestamp); // avg power
     }
     else if (id == DisplayData::BLE_MOT_SPEED)
     {

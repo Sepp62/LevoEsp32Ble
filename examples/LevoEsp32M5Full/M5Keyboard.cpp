@@ -46,11 +46,11 @@ const char keymap[MAX_SHIFT_MODE][ROWS][COLS] =
     {'}', '|', ':', '"', '<', '>', '?'},
     {' ', ' ', ' ', ' ', ' ', ' ', '\002'}, // 002 = mode
   },
-  { // KEY_MODE_NUMERIC
+  { // KEY_MODE_NUMERIC and KEY_MODE_FNUMERIC
     {'7', '8', '9', ' ', ' ', ' ', ' ' },
     {'4', '5', '6', ' ', ' ', ' ', ' ' },
     {'1', '2', '3', ' ', ' ', ' ', ' ' },
-    {' ', '0', ' ', ' ', ' ', ' ', ' ' },
+    {'.', '0', ' ', ' ', ' ', ' ', ' ' },
   },
 };
 
@@ -77,6 +77,8 @@ bool M5Keyboard::Show(String& text, const char* title, key_mode_t keyMode )
   _initKeyboard(text, title, keyMode);
   if( keyMode == KEY_MODE_NUMERIC )
       _drawKeyboardNumeric();
+  else if (keyMode == KEY_MODE_FNUMERIC)
+      _drawKeyboardNumeric( true );
   else
       _drawKeyboard();
   _keyboard_done = false;
@@ -195,7 +197,7 @@ void M5Keyboard::_deinitKeyboard()
   }
 }
 
-void M5Keyboard::_drawKeyboardNumeric()
+void M5Keyboard::_drawKeyboardNumeric( bool bFloat )
 {
     int x, y, cx = 105, cy = KEY_H;
 
@@ -210,6 +212,9 @@ void M5Keyboard::_drawKeyboardNumeric()
             const int key_page = 4;
 
             char ch = keymap[key_page][r][c];
+
+            if(ch == '.' && !bFloat )
+                ch = ' ';
 
             if( ch != ' ' )
             {
@@ -245,6 +250,7 @@ void M5Keyboard::_drawKeyboard()
       case KEY_MODE_NUMBER:      key_page = 2; break;
       case KEY_MODE_SYM:         key_page = 3; break;
       case KEY_MODE_NUMERIC:     key_page = 4; break;
+      case KEY_MODE_FNUMERIC:    key_page = 4; break;
       }
 
       String key;
@@ -315,7 +321,7 @@ void M5Keyboard::_buttonEvent(Event& e)
     if(String(b.label()) == "Mode")
     {
         int key_mode = _key_mode + 1;
-        if( key_mode >= NUM_KEY_MODES - 1) // omit "numeric" layout 
+        if( key_mode >= NUM_KEY_MODES - 2) // omit "numeric" layout 
             key_mode = KEY_MODE_LETTER;
         _key_mode = (key_mode_t)key_mode;
         M5Keyboard::_drawKeyboard();

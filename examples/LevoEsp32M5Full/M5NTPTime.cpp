@@ -31,7 +31,7 @@ bool M5NTPTime::SetTime( const char* ssid, const char* wifiPwd )
     Serial.println(" CONNECTED");
 
     // Set ntp time to local
-    configTime(1 * 3600, 0, ntpServer);
+    configTime(1 * 3600, 3600, ntpServer);
 
     // Init I2C
     Wire1.begin(BM8563_I2C_SDA, BM8563_I2C_SCL);

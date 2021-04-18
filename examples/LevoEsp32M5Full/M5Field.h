@@ -27,13 +27,13 @@
 class M5Field
 {
 protected:
-    typedef struct
+    struct stColors
     {
         uint16_t colLabel;
         uint16_t colValue;
         uint16_t colUnit;
         uint16_t colFrame;
-    } stColors;
+    };
 
     const stColors colors =
     {
@@ -43,13 +43,13 @@ protected:
         M5.Lcd.color565(FRAME_COLOR), // uint16_t colFrame;
     };
 
-    typedef struct
+    struct stMetrics
     {
         uint8_t txtHeightLabel;
         uint8_t txtHeightVal;
         uint16_t rcBoundWidth;
         uint16_t rcBoundHeight;
-    } stMetrics;
+    };
 
     void printSpecialChar(const char* pStr);
 
@@ -63,7 +63,7 @@ public:
 
     M5Field() {}
 
-    virtual void RenderValue(char* strVal, int orgPointX, int orgPointY, const DisplayData::stDisplayData* pDesc, enStyle style = NORMAL);
+    virtual void RenderValue(char* strVal, int orgPointX, int orgPointY, const DisplayData::stDisplayData* pDesc, enStyle style );
     virtual void RenderFrame(int orgPointX, int orgPointY, const DisplayData::stDisplayData* pDesc);
 
     virtual const stMetrics& GetMetrics() = 0;

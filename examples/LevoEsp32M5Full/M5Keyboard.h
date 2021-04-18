@@ -15,6 +15,7 @@ public:
         KEY_MODE_NUMBER,
         KEY_MODE_SYM,
         KEY_MODE_NUMERIC,
+        KEY_MODE_FNUMERIC,
 
         NUM_KEY_MODES,
     } key_mode_t;
@@ -25,7 +26,7 @@ protected:
     static void _initKeyboard(String text, const char* title, key_mode_t keyMode);
     static void _deinitKeyboard();
     static void _drawKeyboard();
-    static void _drawKeyboardNumeric();
+    static void _drawKeyboardNumeric( bool bFloat = false );
     static void _updateInputText();
     static void _btnAEvent(Event& e);
     static void _buttonEvent(Event& e);

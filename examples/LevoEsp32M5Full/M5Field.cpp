@@ -40,7 +40,14 @@ void M5Field::RenderValue(char * strVal, int orgPointX, int orgPointY, const Dis
     M5.Lcd.setCursor(M5.Lcd.getCursorX() + 4, M5.Lcd.getCursorY());
     M5.Lcd.setTextColor(GetColors().colUnit);
     if (pDesc->strUnit[0] == '&')
+    {
         printSpecialChar( (pDesc->strUnit + 1 ) );
+    }
+    else if(pDesc->strUnit[0] == '^')
+    {
+        M5.Lcd.setTextSize(1);
+        M5.Lcd.print(pDesc->strUnit + 1);
+    }
     else
         M5.Lcd.print(pDesc->strUnit);
 }

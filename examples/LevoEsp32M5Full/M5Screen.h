@@ -44,9 +44,9 @@ protected:
 
     typedef struct
     {
-        int x;
-        int y;
-        M5Field* pField;
+        int x = 0;
+        int y = 0;
+        M5Field* pField = 0;
     } stRender;
     stRender m_fldRender[DisplayData::numElements];
 
@@ -99,12 +99,14 @@ protected:
             DisplayData::VIRT_INCLINATION,
             DisplayData::VIRT_CONSUMPTION,
             DisplayData::TRIP_RANGE,
+            DisplayData::PWR_POWER,
+            UNKNOWN, // DisplayData::BARO_TEMP, // DisplayData::GYRO_PITCH,
             UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN,
             UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN,
             UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN,
             UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN,
             UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN,
-            UNKNOWN, UNKNOWN, UNKNOWN,
+            UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN,
         },
         {   // Screen B
             DisplayData::BLE_MOT_PEAKASSIST1,
@@ -126,12 +128,13 @@ protected:
             UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN,
             UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN,
             UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN,
-            UNKNOWN,
+            UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN,
         },
         {   // Screen C
             DisplayData::TRIP_DISTANCE,
             DisplayData::TRIP_TIME,
             DisplayData::TRIP_ELEVATIONGAIN,
+            DisplayData::TRIP_RIDERPOWER,
             DisplayData::TRIP_AVGSPEED,
             DisplayData::TRIP_MAXSPEED,
             DisplayData::TRIP_MINBATTVOLTAGE,
@@ -143,12 +146,13 @@ protected:
             DisplayData::TRIP_PEAKRIDERPOWER,
             DisplayData::TRIP_PEAKMOTORPOWER,
             DisplayData::TRIP_CONSUMPTION, // TRIP_MOTORENERGY,
-           UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN,
-           UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN,
-           UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN,
-           UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN,
-           UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN,
-           UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN,
+            UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN,
+            UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN,
+            UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN,
+            UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN,
+            UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN,
+            UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN,
+            UNKNOWN, UNKNOWN, UNKNOWN,
         }
     };
 

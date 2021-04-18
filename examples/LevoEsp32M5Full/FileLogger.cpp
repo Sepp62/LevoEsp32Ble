@@ -65,8 +65,16 @@ bool FileLogger::Open()
     Serial.print((int)PercentFull());
     Serial.println(" %");
 
+    // filename is <date>.log
+    char filename[20];
+    RTC_TimeTypeDef RTC_Time;
+    RTC_DateTypeDef RTC_Date;
+    M5.Rtc.GetDate(&RTC_Date);
+    M5.Rtc.GetTime(&RTC_Time);
+    snprintf(filename, sizeof(filename), "/%02d%02d%02d.log", RTC_Date.Date, RTC_Date.Month, (uint8_t)(RTC_Date.Year-2000));
+
     // open file in append mode
-    dataFile = SD.open("/levolog.txt", FILE_APPEND);
+    dataFile = SD.open( filename, FILE_APPEND );
     if (!dataFile)
     {
         Serial.println("Error opening log file.");
@@ -74,12 +82,8 @@ bool FileLogger::Open()
     }
 
     // log date time
-    RTC_TimeTypeDef RTCtime;
-    RTC_DateTypeDef RTC_Date;
     char timeStrbuff[40];
-    M5.Rtc.GetDate(&RTC_Date);
-    M5.Rtc.GetTime(&RTCtime);
-    snprintf(timeStrbuff, sizeof(timeStrbuff), "%02d.%02d.%04d, %02d:%02d:%02d", RTC_Date.Date, RTC_Date.Month, RTC_Date.Year, RTCtime.Hours, RTCtime.Minutes, RTCtime.Seconds);
+    snprintf(timeStrbuff, sizeof(timeStrbuff), "%02d.%02d.%04d, %02d:%02d:%02d", RTC_Date.Date, RTC_Date.Month, RTC_Date.Year, RTC_Time.Hours, RTC_Time.Minutes, RTC_Time.Seconds);
     Writeln(timeStrbuff);
     Writeln("====================");
 
@@ -174,7 +178,7 @@ void FileLogger::LogDump(DisplayData::enIds id, float val, DisplayData& DispData
 
     // format float value
     char strVal[20];
-    dtostrf(val, 7, pDesc->nPrecision, strVal);
+    dtostrf(val, 7, pDesc->nLogPrecision, strVal);
 
     // format line
     char s[80];
@@ -252,8 +256,8 @@ bool FileLogger::LogCsvSimple(DisplayData::enIds id, LevoEsp32Ble::stBleVal& ble
 
     // timestamp string
     char strTime[20];
-    uint32_t ti = (timestamp - m_tiStart) / 100; // in 1/10 seconds
-    snprintf(strTime, sizeof(strTime), "%ld.%ld", ti / 10, ti % 10);
+    float ti = timestamp - m_tiStart;
+    dtostrf(ti / 1000.0, 9, 3, strTime); // time in seconds
 
     // distance string
     char strDistance[20];
@@ -269,7 +273,7 @@ bool FileLogger::LogCsvSimple(DisplayData::enIds id, LevoEsp32Ble::stBleVal& ble
         // log only changed values
         if( format == CSV_KNOWNCHANGED )
         {
-            if( !hasChanged(bleVal.fVal, m_tableLineBuffer[id], pDesc->nPrecision ) )
+            if( !hasChanged(bleVal.fVal, m_tableLineBuffer[id], pDesc->nLogPrecision ) )
                 return false;
         }
 
@@ -282,7 +286,7 @@ bool FileLogger::LogCsvSimple(DisplayData::enIds id, LevoEsp32Ble::stBleVal& ble
 
         // format float value with correct precision
         char strVal[20];
-        dtostrf(bleVal.fVal, 7, pDesc->nPrecision, strVal);
+        dtostrf(bleVal.fVal, 7, pDesc->nLogPrecision, strVal);
 
         // replace degree symbol
         char strUnit[10];
@@ -365,8 +369,8 @@ bool FileLogger::LogCsvTable(DisplayData::enIds id, LevoEsp32Ble::stBleVal& bleV
 
     // timestamp string
     char strTime[20];
-    uint32_t ti = (timestamp - m_tiStart) / 100; // in 1/10 seconds
-    snprintf(strTime, sizeof(strTime), "%ld.%ld", ti / 10, ti % 10);
+    float ti = timestamp - m_tiStart;
+    dtostrf(ti/1000.0, 9, 3, strTime); // time in seconds
 
     // distance string
     char strDistance[20];
@@ -392,7 +396,7 @@ bool FileLogger::LogCsvTable(DisplayData::enIds id, LevoEsp32Ble::stBleVal& bleV
             strLog += "\t";
             // format float value with correct precision
             char strVal[20];
-            dtostrf(m_tableLineBuffer[i], 7, pDesc->nPrecision, strVal);
+            dtostrf(m_tableLineBuffer[i], 7, pDesc->nLogPrecision, strVal);
             strLog += strVal;
         }
     }

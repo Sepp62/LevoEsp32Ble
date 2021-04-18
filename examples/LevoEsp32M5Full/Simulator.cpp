@@ -10,8 +10,8 @@
 #include <M5Core2.h>
 #include "Simulator.h"
 
-// Time;   Dist; Id; Batt energy; Batt temp; Batt voltage; Batt current; Charge state; Rider power; Cadence; Speed; Odometer; Assist level; Mot temp; Mot power in; Elevation; Inclination; Motor Wh / km
-// 1564.8; 8.22; 29; 370;         21;        38.2;         6.8;          74;           115;         84.7;    25;    3837.92;  3;            32;       266;          613;       0.0;         12.22
+// Time;   Dist; Id; Batt energy; Batt temp; Batt voltage; Batt current; Charge state; Rider power; Cadence; Speed; Odometer; Assist level; Mot temp; Mot power in; Elevation; Inclination; Motor Wh / km; Temp
+// 1564.8; 8.22; 29; 370;         21;        38.2;         6.8;          74;           115;         84.7;    25;    3837.92;  3;            32;       266;          613;       0.0;         12.22;          16.9
 
 // indicates # of column for a specific id, 0 = invalid
 const int Simulator::s_valColArray[] =
@@ -42,7 +42,7 @@ const int Simulator::s_valColArray[] =
    0,   // BLE_BIKE_FAKECHANNEL,
    0,   // BLE_BIKE_ACCEL,
   15,   // BARO_ALTIMETER,
-   0,   // VIRT_INCLINATION,
+  16,   // VIRT_INCLINATION,
    0,   // TRIP_DISTANCE,
    0,   // TRIP_TIME,
    0,   // TRIP_AVGSPEED,
@@ -58,7 +58,10 @@ const int Simulator::s_valColArray[] =
    0,   // TRIP_MINBATTVOLTAGE,
    0,   // TRIP_MAXSPEED,
    0,   // TRIP_CONSUMPTION,
-   0,   // VIRT_CONSUMPTION,
+  17,   // VIRT_CONSUMPTION,
+   0,   // TRIP_RANGE,
+   0,   // GYRO_PITCH,
+  18,   // BARO_TEMP,
 };
 
 bool Simulator::readLine(uint32_t& time, int& dispId, float& fVal)

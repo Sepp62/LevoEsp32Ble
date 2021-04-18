@@ -141,7 +141,7 @@ void M5Screen::Init(enScreens nScreen, DisplayData& dispData)
         m_idToIdx[id] = i;
 
         // needed field width 
-        if (pDesc->nWidth + strlen( pDesc->strUnit ) > 7)
+        if (pDesc->nWidth > 4)
             m_fldRender[i].pField = &halfField;
         else
             m_fldRender[i].pField = &thirdField;
@@ -281,8 +281,21 @@ bool M5Screen::ShowSysStatus()
             M5.Lcd.drawBitmap(x, 6, 15, 18, imgMap);  // 15x18 image
         }
 
+        // calibration state
+        if (m_sysStatus.calibrationStatus != SystemStatus::INACTIVE)
+        {
+            int x = xpos + 44 + 15 + 14;
+            if( m_sysStatus.calibrationStatus == SystemStatus::RUNNING )
+                M5.Lcd.fillCircle(x, 14, 5, RED);
+            else if (m_sysStatus.calibrationStatus == SystemStatus::ABORTED)
+                M5.Lcd.fillCircle(x, 14, 5, DARKGREY);
+            else if (m_sysStatus.calibrationStatus == SystemStatus::WAITING)
+                M5.Lcd.fillCircle(x, 14, 5, WHITE);
+            else
+                M5.Lcd.fillCircle(x, 14, 5, LIGHTGREY);
+        }
         // trip running
-        if (m_sysStatus.tripStatus != SystemStatus::NONE )
+        else if (m_sysStatus.tripStatus != SystemStatus::NONE )
         {
             int x = xpos + 44 + 15 + 8;
             if (m_sysStatus.tripStatus == SystemStatus::STARTED )

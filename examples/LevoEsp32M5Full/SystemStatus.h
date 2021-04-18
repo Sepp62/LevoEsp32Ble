@@ -32,14 +32,25 @@ public:
         STARTED,
         STOPPED,
     } enTripStatus;
+    typedef enum
+    {
+        INACTIVE = 0,
+        WAITING,
+        RUNNING,
+        READY,
+        ABORTED,
+    } enCalibration;
 
-    float        batterVoltage      = 0.0f;
-    int          batteryPercent     = 0;
-    enSysPower   powerStatus        = POWER_INTERNAL;
-    bool         bHasBtPin          = false; // indicate if bluetooth pin is configured
-    bool         bLogging           = false;
-    bool         bHasSDCard         = false;
-    enTripStatus tripStatus         = NONE;
+    float         batterVoltage      = 0.0f;
+    int           batteryPercent     = 0;
+    enSysPower    powerStatus        = POWER_INTERNAL;
+    bool          bHasBtPin          = false; // indicate if bluetooth pin is configured
+    bool          bLogging           = false;
+    bool          bHasSDCard         = false;
+    bool          bHasAltimeter      = false;
+    bool          bHasIMU            = false;
+    enCalibration calibrationStatus  = INACTIVE; 
+    enTripStatus  tripStatus         = NONE;
 
     void UpdateBleStatus( LevoEsp32Ble::enBleStatus bleStatus );
     bool IsNewBleStatus(LevoEsp32Ble::enBleStatus& bleStatus);

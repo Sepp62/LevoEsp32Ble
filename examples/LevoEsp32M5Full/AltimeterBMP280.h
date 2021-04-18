@@ -25,6 +25,7 @@ public:
 
     bool  Init(); // returns true, if sensor exists
     float GetAltitude( float sealevelhPa = 1013.25 );
+    float GetTemp();
 
     static bool  CanCalculateSealevel() { return m_lastPressure != 0.0; }
     static float GetCurrentSealevelhPa( float calibrationAltitude );

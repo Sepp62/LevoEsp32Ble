@@ -143,7 +143,7 @@ int M5System::checkI2cAddr()
     return 0;
 }
 
-void M5System::CheckPower(SystemStatus& sysStatus)
+void M5System::CheckPowerSupply(SystemStatus& sysStatus)
 {
     sysStatus.powerStatus = ( M5.Axp.isACIN()) ? SystemStatus::POWER_EXTERNAL : SystemStatus::POWER_INTERNAL;
     sysStatus.batterVoltage = M5.Axp.GetBatVoltage();
@@ -173,7 +173,7 @@ void M5System::Init()
     // Wire1 devices
     addI2cDevice("Axp192",0x34);
     addI2cDevice("CST Touch",0x38);
-    // addI2cDevice("IMU6886",0x68);
+    addI2cDevice("IMU6886",0x68);
     addI2cDevice("BM8563",0x51);
 
     M5.Axp.SetLcdVoltage(3300);
@@ -186,7 +186,7 @@ void M5System::Init()
 
     DisCoverScrollbuff.createSprite(320, 60);
     checkI2cAddr();
-    coverScrollText("LEVO BLE Version 0.98", M5.Lcd.color565(SUCCESS_COLOR));
+    coverScrollText("LEVO BLE Version 0.99", M5.Lcd.color565(SUCCESS_COLOR));
     DisCoverScrollbuff.deleteSprite();
 
     delay(500);

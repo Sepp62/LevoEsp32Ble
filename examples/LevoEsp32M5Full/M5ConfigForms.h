@@ -68,12 +68,14 @@ protected:
     void OnCmdLogging(Preferences& prefs);
     void OnCmdMore(Preferences& prefs);
     void OnCmdMore2(Preferences& prefs);
+    void OnCmdPowerMore(Preferences& prefs);
 
     void OnCmdBtPin(Preferences& prefs);
     void OnCmdClockWifi(Preferences& prefs);
     void OnCmdScreen(Preferences& prefs);
     void OnCmdClearAll(Preferences& prefs);
     void OnCmdAltimeter(Preferences& prefs);
+    void OnCmdPower(Preferences& prefs);
 };
 
 #endif // M5CONFIG_FORMS_H

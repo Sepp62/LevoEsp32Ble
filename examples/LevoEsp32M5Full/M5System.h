@@ -17,7 +17,7 @@ class M5System
 {
 public:
     void Init();
-    void CheckPower(SystemStatus& sysStatus);
+    void CheckPowerSupply(SystemStatus& sysStatus);
     void CheckSDCard(SystemStatus& sysStatus);
     void DoDisplayTimer();
     void ResetDisplayTimer(){ tiDisplayOff = 0; DoDisplayTimer();  }

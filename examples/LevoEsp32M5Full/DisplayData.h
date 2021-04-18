@@ -66,6 +66,10 @@ public:
         TRIP_CONSUMPTION,
         VIRT_CONSUMPTION,
         TRIP_RANGE,
+        GYRO_PITCH,
+        BARO_TEMP,
+        PWR_POWER,
+        TRIP_RIDERPOWER,
 
         NUM_ELEMENTS // must be the last value
     } enIds;
@@ -83,8 +87,9 @@ public:
         int dataId;
         const char* strLabel;
         const char* strUnit;
-        int nWidth;       // including decimal point
-        int nPrecision;
+        int nWidth;        // including decimal point
+        int nPrecision;    // precision for screen display
+        int nLogPrecision; // precision for log file
         int flags;
     } stDisplayData;
 
@@ -96,54 +101,58 @@ public:
 protected:
     const stDisplayData displayData[numElements] =
     {
-        // id                     label             unit,   width, precision,   flags
-        { BLE_BATT_SIZEWH,        "Batt size",      "Wh",   4, 0,               STATIC  },
-        { BLE_BATT_REMAINWH,      "Batt energy",    "Wh",   4, 0,               DYNAMIC },
-        { BLE_BATT_HEALTH,        "Batt health",    "%",    4, 0,               STATIC  },
-        { BLE_BATT_TEMP,          "Batt temp",      "&o",   4, 0,               DYNAMIC },// &o = °
-        { BLE_BATT_CHARGECYCLES,  "Charge cycle",   "",     4, 0,               STATIC  },
-        { BLE_BATT_VOLTAGE,       "Batt voltage",   "V",    4, 1,               DYNAMIC },
-        { BLE_BATT_CURRENT,       "Batt current",   "A",    4, 1,               DYNAMIC },
-        { BLE_BATT_CHARGEPERCENT, "Charge state",   "%",    4, 0,               DYNAMIC },
+        // id                     label             unit,   width, prec, logPrec, flags
+        { BLE_BATT_SIZEWH,        "Batt size",      "Wh",   4, 0, 0,              STATIC  },
+        { BLE_BATT_REMAINWH,      "Batt energy",    "Wh",   4, 0, 0,              DYNAMIC },
+        { BLE_BATT_HEALTH,        "Batt health",    "%",    4, 0, 0,              STATIC  },
+        { BLE_BATT_TEMP,          "Batt temp",      "&o",   4, 0, 0,              DYNAMIC },// &o = °
+        { BLE_BATT_CHARGECYCLES,  "Charge cycle",   "",     4, 0, 0,              STATIC  },
+        { BLE_BATT_VOLTAGE,       "Batt voltage",   "V",    4, 1, 1,              DYNAMIC },
+        { BLE_BATT_CURRENT,       "Batt current",   "A",    4, 1, 1,              DYNAMIC },
+        { BLE_BATT_CHARGEPERCENT, "Charge state",   "%",    4, 0, 0,              DYNAMIC },
 
-        { BLE_RIDER_POWER,        "Rider power",    "W",    4, 0,               DYNAMIC },
-        { BLE_MOT_CADENCE,        "Cadence",        "rpm",  5, 1,               DYNAMIC },
-        { BLE_MOT_SPEED,          "Speed ",         "kmh",  5, 1,               DYNAMIC },
-        { BLE_MOT_ODOMETER,       "Odometer",       "km",   7, 2,               DYNAMIC },
-        { BLE_MOT_ASSISTLEVEL,    "Assist level",   "",     4, 0,               DYNAMIC },
-        { BLE_MOT_TEMP,           "Mot temp",       "&o",   4, 0,               DYNAMIC }, // &o = °
-        { BLE_MOT_POWER,          "Mot power in",   "W",    4, 0,               DYNAMIC },
-        { BLE_MOT_PEAKASSIST1,    "Peak Eco",       "%",    4, 0,               STATIC  },
-        { BLE_MOT_PEAKASSIST2,    "Peak Trail",     "%",    4, 0,               STATIC  },
-        { BLE_MOT_PEAKASSIST3,    "Peak Turbo",     "%",    4, 0,               STATIC  },
-        { BLE_MOT_SHUTTLE,        "Shuttle",        "%",    4, 0,               STATIC  },
+        { BLE_RIDER_POWER,        "Rider power",    "W",    4, 0, 0,              DYNAMIC },
+        { BLE_MOT_CADENCE,        "Cadence",        "rpm",  5, 1, 1,              DYNAMIC },
+        { BLE_MOT_SPEED,          "Speed ",         "kph",  5, 1, 1,              DYNAMIC },
+        { BLE_MOT_ODOMETER,       "Odometer",       "km",   7, 2, 2,              DYNAMIC },
+        { BLE_MOT_ASSISTLEVEL,    "Assist level",   "",     4, 0, 0,              DYNAMIC },
+        { BLE_MOT_TEMP,           "Mot temp",       "&o",   4, 0, 0,              DYNAMIC }, // &o = °
+        { BLE_MOT_POWER,          "Mot power in",   "W",    4, 0, 0,              DYNAMIC },
+        { BLE_MOT_PEAKASSIST1,    "Peak Eco",       "%",    4, 0, 0,              STATIC  },
+        { BLE_MOT_PEAKASSIST2,    "Peak Trail",     "%",    4, 0, 0,              STATIC  },
+        { BLE_MOT_PEAKASSIST3,    "Peak Turbo",     "%",    4, 0, 0,              STATIC  },
+        { BLE_MOT_SHUTTLE,        "Shuttle",        "%",    4, 0, 0,              STATIC  },
 
-        { BLE_BIKE_WHEELCIRC,     "Wheel circ.",    "mm",   4, 0,               STATIC  },
-        { BLE_BIKE_ASSISTLEV1,    "Assist Eco",     "%",    4, 0,               STATIC  },
-        { BLE_BIKE_ASSISTLEV2,    "Assist Trail",   "%",    4, 0,               STATIC  },
-        { BLE_BIKE_ASSISTLEV3,    "Assist Turbo",   "%",    4, 0,               STATIC  },
-        { BLE_BIKE_FAKECHANNEL,   "Fake chan",      "",     4, 0,               STATIC  },
-        { BLE_BIKE_ACCEL,         "Accel.",         "%",    4, 0,               STATIC  },
+        { BLE_BIKE_WHEELCIRC,     "Wheel circ.",    "mm",   4, 0, 0,              STATIC  },
+        { BLE_BIKE_ASSISTLEV1,    "Assist Eco",     "%",    4, 0, 0,              STATIC  },
+        { BLE_BIKE_ASSISTLEV2,    "Assist Trail",   "%",    4, 0, 0,              STATIC  },
+        { BLE_BIKE_ASSISTLEV3,    "Assist Turbo",   "%",    4, 0, 0,              STATIC  },
+        { BLE_BIKE_FAKECHANNEL,   "Fake chan",      "",     4, 0, 0,              STATIC  },
+        { BLE_BIKE_ACCEL,         "Accel.",         "%",    4, 0, 0,              STATIC  },
 
-        { BARO_ALTIMETER,         "Elevation",      "m",    4, 0,               DYNAMIC },
-        { VIRT_INCLINATION,       "Inclination",    "%",    3, 0,               DYNAMIC },
-        { TRIP_DISTANCE,          "Trip dist.",     "km",   7, 2,               TRIP    },
-        { TRIP_TIME,              "Trip time",      "",     8, 0,               TRIP|TIME },
-        { TRIP_AVGSPEED,          "Avg speed",      "kmh",  5, 1,               TRIP    },
-        { TRIP_RIDERENERGY,       "Rider energy",   "Wh",   4, 0,               TRIP    },
-        { TRIP_MOTORENERGY,       "Motor energy",   "Wh",   4, 0,               TRIP    },
-        { TRIP_BATTENERGY,        "Batt energy",    "Wh",   4, 0,               TRIP    },
-        { TRIP_ELEVATIONGAIN,     "Elev. gain",     "m",    4, 0,               TRIP    },
-        { TRIP_PEAKMOTTEMP,       "Peak Tmot",      "&o",   4, 0,               TRIP    },
-        { TRIP_PEAKBATTTEMP,      "Peak Tbatt",     "&o",   4, 0,               TRIP    },
-        { TRIP_PEAKBATTCURRENT,   "Peak Ibatt",     "A",    4, 1,               TRIP    },
-        { TRIP_PEAKRIDERPOWER,    "Peak Prider",    "W",    4, 0,               TRIP    },
-        { TRIP_PEAKMOTORPOWER,    "Peak Pmot",      "W",    4, 0,               TRIP    },
-        { TRIP_MINBATTVOLTAGE,    "Min bat volt",   "V",    4, 1,               TRIP    },
-        { TRIP_MAXSPEED,          "Max speed",      "kmh",  5, 1,               TRIP    },
-        { TRIP_CONSUMPTION,       "Trip Wh/km",     "",     5, 1,               TRIP    },
-        { VIRT_CONSUMPTION,       "Motor Wh/km",    "",     5, 1,               DYNAMIC },
-        { TRIP_RANGE,             "Trip range",     "km",   4, 0,               TRIP    },
+        { BARO_ALTIMETER,         "Elevation",      "m",    4, 0, 1,              DYNAMIC },
+        { VIRT_INCLINATION,       "Inclination",    "%",    4, 1, 1,              DYNAMIC },
+        { TRIP_DISTANCE,          "Trip dist.",     "km",   7, 2, 2,              TRIP    },
+        { TRIP_TIME,              "Trip time",      "",     8, 0, 0,              TRIP|TIME },
+        { TRIP_AVGSPEED,          "Avg speed",      "^kph", 4, 1, 1,              TRIP    },
+        { TRIP_RIDERENERGY,       "Rider energy",   "Wh",   4, 0, 0,              TRIP    },
+        { TRIP_MOTORENERGY,       "Motor energy",   "Wh",   4, 0, 0,              TRIP    },
+        { TRIP_BATTENERGY,        "Batt energy",    "Wh",   4, 0, 0,              TRIP    },
+        { TRIP_ELEVATIONGAIN,     "Elev. gain",     "m",    4, 0, 0,              TRIP    },
+        { TRIP_PEAKMOTTEMP,       "Peak Tmot",      "&o",   4, 0, 0,              TRIP    },
+        { TRIP_PEAKBATTTEMP,      "Peak Tbatt",     "&o",   4, 0, 0,              TRIP    },
+        { TRIP_PEAKBATTCURRENT,   "Peak Ibatt",     "A",    4, 1, 1,              TRIP    },
+        { TRIP_PEAKRIDERPOWER,    "Peak Prider",    "W",    4, 0, 0,              TRIP    },
+        { TRIP_PEAKMOTORPOWER,    "Peak Pmot",      "W",    4, 0, 0,              TRIP    },
+        { TRIP_MINBATTVOLTAGE,    "Min bat volt",   "V",    4, 1, 1,              TRIP    },
+        { TRIP_MAXSPEED,          "Max speed",      "^kph", 4, 1, 1,              TRIP    },
+        { TRIP_CONSUMPTION,       "Trip Wh/km",     "",     4, 1, 1,              TRIP    },
+        { VIRT_CONSUMPTION,       "Motor Wh/km",    "",     4, 1, 1,              DYNAMIC },
+        { TRIP_RANGE,             "Trip range",     "km",   4, 0, 0,              TRIP    },
+        { GYRO_PITCH,             "Gyro Inc",       "&o",   4, 1, 1,              DYNAMIC },
+        { BARO_TEMP,              "Temp",           "&o",   4, 1, 1,              DYNAMIC },
+        { PWR_POWER,              "Calc power",     "W",    4, 0, 0,              DYNAMIC },
+        { TRIP_RIDERPOWER,        "Avg Prider",     "W",    4, 0, 0,              TRIP    },
     };
 
     std::bitset<numElements> hiddenMask;

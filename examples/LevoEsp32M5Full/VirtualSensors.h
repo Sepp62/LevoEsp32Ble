@@ -10,8 +10,6 @@
 #ifndef VIRTUAL_SENSORS_H
 #define VIRTUAL_SENSORS_H
 
-#undef min
-#include <deque>
 #include "DisplayData.h"
 
 class VirtualSensors
@@ -51,7 +49,7 @@ protected:
             float odo;
             float alti;
         };
-        enum{ SIZE = 10 };
+        enum{ SIZE = 5 };
         stInclination m_values[SIZE];
         int  m_cnt;
         size_t m_head;
@@ -145,6 +143,10 @@ protected:
         virtual void reset() { currentTripValue = sumTime = 0.0; lastTime = 0; }
         virtual void setValue(float fVal, uint32_t timestamp);
         virtual bool deliverValue(float& fVal, bool bForce = false);
+    };
+    struct stAverageNonZeroValue : stAverageValue
+    {
+        virtual void setValue(float fVal, uint32_t timestamp);
     };
     struct stSimpleValue : stVirtSensorValue
     {

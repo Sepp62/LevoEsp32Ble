@@ -49,6 +49,11 @@ bool  AltimeterBMP280::Init()
     return true;
 }
 
+float AltimeterBMP280::GetTemp()
+{
+    return m_pBmp->readTemperature();
+}
+
 float AltimeterBMP280::GetAltitude(float sealevelPressure)
 {
     float alt = readAltitude(sealevelPressure);

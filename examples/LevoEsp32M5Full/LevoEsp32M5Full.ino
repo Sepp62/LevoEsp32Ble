@@ -3,7 +3,7 @@
  *      Author: Bernd Wokoeck
  *
  *  Displays Specialized Levo 2019+ telemetry values to M5Core2 display
- *  and logs data to SD card (levolog.txt)
+ *  and logs data to SD card (<date>.log and summary file <date>.txt)
  *  
  *  Library dependencies:
  *  https://github.com/h2zero/NimBLE-Arduino
@@ -11,6 +11,7 @@
  *  https://github.com/ropg/ezTime
  *  https://github.com/tanakamasayuki/I2C_BM8563
  *  https://github.com/adafruit/Adafruit_BMP280_Library
+ *  https://github.com/Sepp62/BikePowerCalc
  * 
  *  Images converted with: https://lvgl.io/tools/imageconverter (True color, C-Array)
  *
@@ -29,9 +30,10 @@
  *                         simulator added (see #define): copy CSV full table log
  *                         on SD, delete all non table data and rename it to "simulator.txt"
  *      0.98   14/03/2021  trip range added, bug fixes
+ *      0.99   05/04/2021  power calculations and some sensor values added
  */
 
-#include <M5core2.h>
+#include <M5Core2.h>
 #include <Preferences.h>
 #include <LevoReadWrite.h>
 #include "DisplayData.h"
@@ -42,12 +44,24 @@
 #include "M5ConfigFormTune.h"
 #include "AltimeterBMP280.h"
 #include "VirtualSensors.h"
+#include "IMUSensors.h"
+#include "PowerUtil.h"
 
 // #define SIMULATOR
 #ifdef SIMULATOR
     #include "Simulator.h"
     Simulator SensorSimulator;
 #endif
+
+// sensor value sources
+typedef enum enValueSource
+{
+    SRC_BLE = 0,
+    SRC_VIRT,
+    SRC_BARO,
+    SRC_IMU,
+    SRC_POWER,
+};
 
 Preferences     Prefs;
 LevoReadWrite   LevoBle;
@@ -58,14 +72,16 @@ M5Screen        Screen( SysStatus );
 FileLogger      Logger;
 AltimeterBMP280 Altimeter;
 VirtualSensors  VirtSensors;
+IMUSensors      IMU;
+PowerUtil       Power;
 
 // local settings
 FileLogger::enLogFormat _logFormat = FileLogger::CSV_SIMPLE;
 bool     _bBtEnabled = true;
 uint16_t _backlightTimeout = 60;
 bool     _bBacklightCharging = true;
-bool     _bHasAltimeter = false;
 float    _sealevelhPa = 1013.25;
+bool     _bPwrCalibEnabled = false;
 
 M5Screen::enScreens currentScreen = M5Screen::SCREEN_A;
 
@@ -98,13 +114,15 @@ void readPreferences()
     _bBtEnabled         = Prefs.getUChar("BtEnabled", 1) ? true : false;
     _backlightTimeout   = Prefs.getUShort("BacklightTo", 60);
     _bBacklightCharging = Prefs.getUChar("BacklightChg", 1) ? true : false;
-    _sealevelhPa        = Prefs.getFloat("sealevelhPa", 1013.25);
+    _sealevelhPa        = Prefs.getFloat("SealevelhPa", 1013.25);
+    _bPwrCalibEnabled   = Prefs.getUChar("PwrCalibEnabled", 0) ? true : false;
 
     Serial.printf("Log format: %d\r\n", _logFormat);
     Serial.printf("Bluetooth enabled: %d\r\n", _bBtEnabled);
     Serial.printf("Backlight timeout: %d\r\n", _backlightTimeout);
     Serial.printf("Backlight while charging: %d\r\n", _bBacklightCharging);
     Serial.printf("SealevelPressure (hPa): %f\r\n", _sealevelhPa);
+    Serial.printf("PwrCalibEnabled: %d\r\n", _bPwrCalibEnabled);
 }
 
 // Read bluetooth pin from preferences
@@ -124,6 +142,9 @@ void onBtSettings(Event& e)
     Screen.ShowConfig(Prefs);
     // refresh settings
     readPreferences();
+    // reinit power calc
+    Power.SysParamsInit(Prefs);
+    Power.EnableCalibrationMode(_bPwrCalibEnabled);
     // reinit display
     Core2.ResetDisplayTimer();
     Core2.SetBacklightSettings( _backlightTimeout, _bBacklightCharging );
@@ -235,7 +256,7 @@ void ShowBleMaxSupport(LevoEsp32Ble::stBleVal& bleVal, uint32_t timestamp )
 }
 
 // print and log received bluetooth data
-void ShowBleData( LevoEsp32Ble::stBleVal & bleVal, uint32_t timestamp )
+DisplayData::enIds ShowBleData( LevoEsp32Ble::stBleVal & bleVal, uint32_t timestamp )
 {
     DisplayData::enIds id = DisplayData::UNKNOWN;
 
@@ -265,20 +286,21 @@ void ShowBleData( LevoEsp32Ble::stBleVal & bleVal, uint32_t timestamp )
     case LevoEsp32Ble::BIKE_FAKECHANNEL:   id = DisplayData::BLE_BIKE_FAKECHANNEL;   break;
     case LevoEsp32Ble::BIKE_ACCEL:         id = DisplayData::BLE_BIKE_ACCEL;         break;
     // motor max support settings (3 values in one message)
-    case LevoEsp32Ble::MOT_PEAKASSIST:     ShowBleMaxSupport(bleVal, timestamp);     return;
+    case LevoEsp32Ble::MOT_PEAKASSIST:     ShowBleMaxSupport(bleVal, timestamp);     return DisplayData::UNKNOWN;
     }
 
     // display and log decoded value
     if( id != DisplayData::UNKNOWN && bleVal.unionType == LevoEsp32Ble::FLOAT )
     {
         ShowFloatData(id, bleVal.fVal, timestamp );
-        VirtSensors.FeedValue(id, bleVal.fVal, timestamp);  // notify virtual sensors
     }
     else
     {
         // log unknown data and dump to serial
         Logger.Writeln(id, bleVal, DispData, _logFormat, timestamp );
     }
+
+    return id;
 }
 
 // print and log float values from non BLE sensors
@@ -291,6 +313,45 @@ void ShowFloatData(DisplayData::enIds id, float fVal, uint32_t timestamp )
     Logger.Writeln(id, bleVal, DispData, _logFormat, timestamp );
 }
 
+// notify other sensors 
+void FeedForward( DisplayData::enIds id, float fVal, uint32_t timestamp, enValueSource enSource )
+{
+    if( enSource != SRC_VIRT )
+        VirtSensors.FeedValue(id, fVal, timestamp);  // notify virtual sensors
+    if (enSource != SRC_IMU )
+        IMU.FeedValue( id, fVal, timestamp );
+    if (enSource != SRC_POWER )
+        Power.FeedValue(id, fVal, timestamp);
+}
+
+void CheckCalibration()
+{
+    // check calibration sequence for roll and air resistance
+    PowerUtil::enCalibrationState cs = Power.CheckCalibration();
+
+    if( cs == PowerUtil::RUNNING)
+        SysStatus.calibrationStatus = SystemStatus::RUNNING;
+    else if (cs == PowerUtil::WAITING)
+        SysStatus.calibrationStatus = SystemStatus::WAITING;
+    else if (cs == PowerUtil::ABORTED )
+        SysStatus.calibrationStatus = SystemStatus::ABORTED;
+    else
+        SysStatus.calibrationStatus = SystemStatus::INACTIVE;
+
+    float cR, cwA;
+    if( Power.GetCalibrationResult( cR, cwA ) )
+    {
+        Power.CalibrationSave( Prefs, cR, cwA );
+    }
+
+    // check compensation factor for electric power efficiency: calcPower = (motorPower * eta) + riderPower
+    float eta;
+    if (Power.GetEta(eta))
+    {
+        Power.EtaSave( Prefs, eta );
+    }
+}
+
 // sensor simulator
 #ifdef SIMULATOR
 void Simulate(uint32_t timestamp)
@@ -299,12 +360,13 @@ void Simulate(uint32_t timestamp)
     float fVal;
     // _bBtEnabled = true;
     // SysStatus.UpdateBleStatus(LevoEsp32Ble::CONNECTED);
-    _bHasAltimeter = false;
+    SysStatus.bHasAltimeter = false;
     if (SensorSimulator.Update( id, fVal, timestamp ) )
     {
         // Serial.printf("id: %d, val: %f\r\n", id, fVal );
         Screen.ShowValue(id, fVal, DispData); // ouput to screen
         VirtSensors.FeedValue(id, fVal, timestamp);
+        Power.FeedValue(id, fVal, timestamp);
     }
 }
 #endif
@@ -323,12 +385,20 @@ void setup ()
     Core2.SetBacklightSettings(_backlightTimeout, _bBacklightCharging);
 
     // altimeter
-    _bHasAltimeter = Altimeter.Init();
-    if( !_bHasAltimeter )
+    SysStatus.bHasAltimeter = Altimeter.Init();
+    if( !SysStatus.bHasAltimeter )
     {
         DispData.Hide(DisplayData::BARO_ALTIMETER );
         DispData.Hide(DisplayData::VIRT_INCLINATION);
         DispData.Hide(DisplayData::TRIP_ELEVATIONGAIN);
+        DispData.Hide(DisplayData::BARO_TEMP);
+    }
+
+    // IMU
+    // SysStatus.bHasIMU = IMU.Init();
+    if (!SysStatus.bHasIMU)
+    {
+        DispData.Hide(DisplayData::GYRO_PITCH);
     }
 
     // all screen output
@@ -337,6 +407,10 @@ void setup ()
 
     // bluetooth communication
     LevoBle.Init( ReadBluetoothPin(), _bBtEnabled );
+
+    // enable power calibration
+    Power.SysParamsInit( Prefs );
+    Power.EnableCalibrationMode( _bPwrCalibEnabled );
 
     // buttons
     installButtonHandlers();
@@ -356,7 +430,10 @@ void loop ()
     // bluetooth handling
     LevoEsp32Ble::stBleVal bleVal;
     if (LevoBle.Update(bleVal))
-        ShowBleData( bleVal, ti );
+    {
+        DisplayData::enIds id = ShowBleData( bleVal, ti );
+        FeedForward( id, bleVal.fVal, ti, SRC_BLE );
+    }
 
     #ifdef SIMULATOR
         Simulate( ti );
@@ -369,7 +446,10 @@ void loop ()
         // get virtual sensor values
         DisplayData::enIds id; float fVal;
         if (VirtSensors.Update(id, fVal, ti))
+        {
             ShowFloatData(id, fVal, ti);
+            FeedForward( id, fVal, ti, SRC_VIRT );
+        }
     }
 
     // do all 100ms
@@ -378,9 +458,17 @@ void loop ()
         ti100 = ti + 100L;
         // print system status to screen
         SysStatus.UpdateBleStatus( LevoBle.GetBleStatus() );
-        Core2.CheckPower(SysStatus);
+        Core2.CheckPowerSupply(SysStatus);
         if (Screen.ShowSysStatus())
             BleStatusChanged();
+
+        // IMU
+        DisplayData::enIds id; float fVal;
+        if ( SysStatus.bHasIMU && IMU.Update( id, fVal, ti ) )
+        {
+            ShowFloatData(id, fVal, ti);
+            FeedForward( id, fVal, ti, SRC_IMU);
+        }
 
         // dim display after some time
         Core2.DoDisplayTimer();
@@ -391,12 +479,25 @@ void loop ()
     {
         ti1000 = ti + 1000L;
         // Altimeter
-        if (_bHasAltimeter)
+        if (SysStatus.bHasAltimeter)
         {
             float altitude = Altimeter.GetAltitude(_sealevelhPa);
             ShowFloatData( DisplayData::BARO_ALTIMETER, altitude, ti );
-            VirtSensors.FeedValue(DisplayData::BARO_ALTIMETER, altitude, ti);  // notify virtual sensors
+            FeedForward( DisplayData::BARO_ALTIMETER, altitude, ti, SRC_BARO );
+            float temp = Altimeter.GetTemp();
+            ShowFloatData(DisplayData::BARO_TEMP, temp, ti);
+            FeedForward(DisplayData::BARO_TEMP, temp, ti, SRC_BARO);
         }
+
+        // get calculated power data
+        DisplayData::enIds id; float fVal;
+        if (Power.Update(id, fVal, ti))
+        {
+            ShowFloatData(id, fVal, ti);
+        }
+
+        // evaluate calibration status
+        CheckCalibration();
     }
 
     // touch update
